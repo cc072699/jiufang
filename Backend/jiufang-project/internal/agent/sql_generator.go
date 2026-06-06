@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
+	"jiufang/internal/infrastructure/erp"
 	"jiufang/internal/infrastructure/llm"
 	"jiufang/internal/model/agent"
 )
@@ -14,19 +16,24 @@ import (
 // SQLGenerator generates SQL from intent and entities.
 type SQLGenerator struct {
 	llmClient llm.LLMClientInterface
+	erpReader erp.ERPReaderInterface
 }
 
 // NewSQLGenerator creates a new SQL generator.
-func NewSQLGenerator(llmClient llm.LLMClientInterface) *SQLGenerator {
+func NewSQLGenerator(llmClient llm.LLMClientInterface, erpReader erp.ERPReaderInterface) *SQLGenerator {
 	return &SQLGenerator{
 		llmClient: llmClient,
+		erpReader: erpReader,
 	}
 }
 
 // Generate generates SQL from intent and entities.
 func (g *SQLGenerator) Generate(ctx context.Context, intent *agent.Intent, entities []agent.Entity) (string, error) {
+	// Build dynamic schema from ERP database
+	schema := g.buildDynamicSchema(ctx)
+
 	// Build prompt for SQL generation
-	prompt := buildSQLPrompt(intent, entities)
+	prompt := buildSQLPrompt(intent, entities, schema)
 
 	// Call LLM
 	response, err := g.llmClient.Generate(ctx, prompt)
@@ -42,6 +49,38 @@ func (g *SQLGenerator) Generate(ctx context.Context, intent *agent.Intent, entit
 	}
 
 	return sql, nil
+}
+
+// buildDynamicSchema builds a schema description string from the ERP database.
+func (g *SQLGenerator) buildDynamicSchema(ctx context.Context) string {
+	if g.erpReader == nil {
+		return "- (ERP数据库未连接，使用默认表结构)"
+	}
+
+	tables, err := g.erpReader.GetTableList(ctx)
+	if err != nil || len(tables) == 0 {
+		return "- (无法获取表列表)"
+	}
+
+	var sb strings.Builder
+	for _, tableName := range tables {
+		schema, err := g.erpReader.GetTableSchema(ctx, tableName)
+		if err != nil {
+			continue
+		}
+		cols := make([]string, 0, len(schema.Columns))
+		for _, col := range schema.Columns {
+			comment := col.Comment
+			if comment != "" {
+				cols = append(cols, col.Name+" /*"+comment+"*/")
+			} else {
+				cols = append(cols, col.Name)
+			}
+		}
+		sb.WriteString(fmt.Sprintf("- %s: %s\n", tableName, strings.Join(cols, ", ")))
+	}
+
+	return sb.String()
 }
 
 // GenerateWithSchema generates SQL with schema information.
@@ -108,7 +147,18 @@ func (g *SQLGenerator) generateWithTemplate(intent *agent.Intent, entities []age
 
 // buildStatisticsSQL builds SQL for statistics query.
 func buildStatisticsSQL(tableName string, entities []agent.Entity) string {
-	sql := fmt.Sprintf("SELECT COUNT(*) as total_count, SUM(amount) as total_amount FROM %s", tableName)
+	// Determine the amount column based on table
+	amountCol := "total_amount"
+	joinClause := ""
+
+	switch tableName {
+	case "purchase_orders":
+		joinClause = " JOIN suppliers ON purchase_orders.supplier_id = suppliers.id"
+	case "sales_orders":
+		joinClause = " JOIN customers ON sales_orders.customer_id = customers.id"
+	}
+
+	sql := fmt.Sprintf("SELECT COUNT(*) as total_count, SUM(%s.%s) as total_amount FROM %s%s", tableName, amountCol, tableName, joinClause)
 
 	// Add WHERE clause from entities
 	whereClause := buildWhereClause(entities)
@@ -140,7 +190,8 @@ func buildDetailSQL(tableName string, entities []agent.Entity) string {
 
 // buildTrendSQL builds SQL for trend query.
 func buildTrendSQL(tableName string, entities []agent.Entity) string {
-	sql := fmt.Sprintf("SELECT DATE(created_at) as date, SUM(amount) as daily_amount FROM %s", tableName)
+	amountCol := "total_amount"
+	sql := fmt.Sprintf("SELECT DATE(created_at) as date, SUM(%s) as daily_amount FROM %s", amountCol, tableName)
 
 	// Add WHERE clause from entities
 	whereClause := buildWhereClause(entities)
@@ -159,9 +210,27 @@ func buildTrendSQL(tableName string, entities []agent.Entity) string {
 
 // buildComparisonSQL builds SQL for comparison query.
 func buildComparisonSQL(tableName string, entities []agent.Entity) string {
-	// For comparison, we need two time ranges
-	// This is a simplified implementation
-	sql := fmt.Sprintf("SELECT period, SUM(amount) as amount FROM (SELECT 'period1' as period, amount FROM %s WHERE created_at >= '2024-01-01' AND created_at < '2024-04-01' UNION ALL SELECT 'period2' as period, amount FROM %s WHERE created_at >= '2024-04-01' AND created_at < '2024-07-01') as comparison_data GROUP BY period", tableName, tableName)
+	amountCol := "total_amount"
+	now := time.Now()
+	year, month, _ := now.Date()
+	// Current quarter start
+	cqStart := time.Date(year, ((month-1)/3)*3+1, 1, 0, 0, 0, 0, time.Local)
+	// Previous quarter start
+	pqStart := cqStart.AddDate(0, -3, 0)
+	// Current quarter end (next quarter start)
+	cqEnd := cqStart.AddDate(0, 3, 0)
+	// Previous quarter end
+	pqEnd := cqStart
+
+	sql := fmt.Sprintf(
+		"SELECT period, SUM(%s) as amount FROM "+
+			"(SELECT 'period1' as period, %s FROM %s WHERE created_at >= '%s' AND created_at < '%s' "+
+			"UNION ALL "+
+			"SELECT 'period2' as period, %s FROM %s WHERE created_at >= '%s' AND created_at < '%s') as comparison_data "+
+			"GROUP BY period",
+		amountCol, amountCol, tableName, pqStart.Format("2006-01-02"), pqEnd.Format("2006-01-02"),
+		amountCol, tableName, cqStart.Format("2006-01-02"), cqEnd.Format("2006-01-02"),
+	)
 
 	return sql
 }
@@ -184,28 +253,28 @@ func buildWhereClause(entities []agent.Entity) string {
 			}
 
 		case agent.EntityTypeAmount:
-			// Parse amount condition
+			// Parse amount condition (use total_amount for main order tables)
 			if strings.HasPrefix(e.Value, ">") {
-				conditions = append(conditions, fmt.Sprintf("amount %s", e.Value))
+				conditions = append(conditions, fmt.Sprintf("total_amount %s", e.Value))
 			} else if strings.HasPrefix(e.Value, "<") {
-				conditions = append(conditions, fmt.Sprintf("amount %s", e.Value))
+				conditions = append(conditions, fmt.Sprintf("total_amount %s", e.Value))
 			} else if strings.HasPrefix(e.Value, "=") {
-				conditions = append(conditions, fmt.Sprintf("amount %s", e.Value))
+				conditions = append(conditions, fmt.Sprintf("total_amount %s", e.Value))
 			} else if strings.HasPrefix(e.Value, "between") {
-				conditions = append(conditions, fmt.Sprintf("amount %s", e.Value))
+				conditions = append(conditions, fmt.Sprintf("total_amount %s", e.Value))
 			}
 
 		case agent.EntityTypeSupplier:
-			conditions = append(conditions, fmt.Sprintf("supplier_name LIKE '%s'", e.Value))
+			conditions = append(conditions, fmt.Sprintf("suppliers.supplier_name LIKE '%%%s%%'", e.Value))
 
 		case agent.EntityTypeStatus:
 			conditions = append(conditions, fmt.Sprintf("status = '%s'", e.Value))
 
 		case agent.EntityTypeDepartment:
-			conditions = append(conditions, fmt.Sprintf("department = '%s'", e.Value))
+			conditions = append(conditions, fmt.Sprintf("purchaser LIKE '%%%s%%'", e.Value))
 
 		case agent.EntityTypeCustomer:
-			conditions = append(conditions, fmt.Sprintf("customer_name LIKE '%s'", e.Value))
+			conditions = append(conditions, fmt.Sprintf("customers.customer_name LIKE '%%%s%%'", e.Value))
 		}
 	}
 
@@ -223,12 +292,13 @@ func mapDocumentTypeToTable(docType string) string {
 		"purchase":       "purchase_orders",
 		"sales_order":    "sales_orders",
 		"sales":          "sales_orders",
-		"payment":        "payments",
-		"receipt":        "receipts",
 		"inbound":        "inbound_orders",
-		"outbound":       "outbound_orders",
-		"invoice":        "invoices",
-		"expense":        "expenses",
+		"product":        "products",
+		"inventory":      "inventory",
+		"production":     "production_tasks",
+		"quality":        "quality_inspections",
+		"supplier":       "suppliers",
+		"customer":       "customers",
 	}
 
 	if table, ok := tableMap[docType]; ok {
@@ -256,13 +326,13 @@ func addPermissionFilter(sql string, permissionFilter string) string {
 }
 
 // buildSQLPrompt builds the prompt for SQL generation.
-func buildSQLPrompt(intent *agent.Intent, entities []agent.Entity) string {
+func buildSQLPrompt(intent *agent.Intent, entities []agent.Entity, schema string) string {
 	entityStr := ""
 	for _, e := range entities {
 		entityStr += fmt.Sprintf("- %s: %s (原始: %s)\n", e.Type, e.Value, e.RawText)
 	}
 
-	return fmt.Sprintf(`请根据以下意图和实体信息生成SQL查询语句。
+	return fmt.Sprintf(`请根据以下意图和实体信息生成MySQL查询语句。
 
 意图类型：%s
 意图描述：%s
@@ -270,18 +340,18 @@ func buildSQLPrompt(intent *agent.Intent, entities []agent.Entity) string {
 实体信息：
 %s
 
-数据库表结构：
-- purchase_orders: 采购单表（id, supplier_name, amount, status, created_at, department）
-- sales_orders: 销售单表（id, customer_name, amount, status, created_at, department）
-- payments: 付款单表（id, supplier_name, amount, status, created_at, purchase_order_id）
-- receipts: 收款单表（id, customer_name, amount, status, created_at, sales_order_id）
+数据库表结构（MySQL）：
+%s
 
 请生成符合以下要求的SQL：
 1. 只生成SELECT语句，不要包含DELETE、UPDATE、INSERT等操作
 2. 根据意图类型选择合适的聚合函数（统计查询用COUNT/SUM，明细查询不用聚合）
-3. 根据实体信息添加WHERE条件
-4. 趋势查询需要GROUP BY日期
-5. 对比查询需要对比不同时间段的数据
+3. 根据实体信息添加WHERE条件，注意使用正确的字段名
+4. 需要关联供应商名称时，JOIN suppliers表：purchase_orders JOIN suppliers ON purchase_orders.supplier_id = suppliers.id
+5. 需要关联客户名称时，JOIN customers表：sales_orders JOIN customers ON sales_orders.customer_id = customers.id
+6. 需要关联产品名称时，JOIN products表
+7. 趋势查询需要GROUP BY日期
+8. 对比查询需要对比不同时间段的数据
 
 请返回以下JSON格式：
 {
@@ -289,7 +359,7 @@ func buildSQLPrompt(intent *agent.Intent, entities []agent.Entity) string {
   "understanding": "对用户意图的理解摘要"
 }
 
-只返回JSON，不要其他内容。`, intent.Type, intent.Description, entityStr)
+只返回JSON，不要其他内容。`, intent.Type, intent.Description, entityStr, schema)
 }
 
 // buildSQLPromptWithSchema builds the prompt with table schema.
@@ -366,10 +436,10 @@ type SQLTemplate struct {
 func NewSQLTemplate() *SQLTemplate {
 	return &SQLTemplate{
 		templates: map[agent.IntentType]string{
-			agent.IntentTypeStatistics: "SELECT COUNT(*) as total_count, SUM(amount) as total_amount FROM {table} WHERE {conditions}",
+			agent.IntentTypeStatistics: "SELECT COUNT(*) as total_count, SUM(total_amount) as total_amount FROM {table} WHERE {conditions}",
 			agent.IntentTypeDetail:     "SELECT * FROM {table} WHERE {conditions} ORDER BY created_at DESC LIMIT 100",
-			agent.IntentTypeTrend:      "SELECT DATE(created_at) as date, SUM(amount) as daily_amount FROM {table} WHERE {conditions} GROUP BY DATE(created_at) ORDER BY date",
-			agent.IntentTypeComparison: "SELECT period, SUM(amount) as amount FROM {comparison_query} GROUP BY period",
+			agent.IntentTypeTrend:      "SELECT DATE(created_at) as date, SUM(total_amount) as daily_amount FROM {table} WHERE {conditions} GROUP BY DATE(created_at) ORDER BY date",
+			agent.IntentTypeComparison: "SELECT period, SUM(total_amount) as amount FROM {comparison_query} GROUP BY period",
 		},
 	}
 }

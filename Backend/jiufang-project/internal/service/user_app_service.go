@@ -4,8 +4,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 
 	"jiufang/internal/model/user"
 	pkgerrors "jiufang/internal/pkg/errors"
@@ -67,14 +69,17 @@ func (s *UserAppService) CreateUser(ctx context.Context, req *user.CreateUserReq
 	// Generate snowflake ID
 	snowflakeID := s.idGenerator.Generate()
 
-	// Hash password (TODO: implement proper password hashing)
-	hashedPassword := req.Password // For now, store as-is (will be fixed later)
+	// Hash password with bcrypt
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
 
 	// Create user entity
 	newUser := &user.User{
 		SnowflakeID: snowflakeID,
 		Username:    req.Username,
-		Password:    hashedPassword,
+		Password:    string(hashedPassword),
 		Email:       req.Email,
 		Role:        string(req.Role),
 		Status:      1, // Default to active
@@ -188,8 +193,11 @@ func (s *UserAppService) UpdateUser(ctx context.Context, snowflakeID int64, req 
 
 	// Update password if provided
 	if req.Password != "" {
-		// TODO: implement proper password hashing
-		existingUser.Password = req.Password
+		hashedPwd, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash password: %w", err)
+		}
+		existingUser.Password = string(hashedPwd)
 	}
 
 	// Update role if provided
@@ -250,4 +258,23 @@ func (s *UserAppService) DeleteUser(ctx context.Context, snowflakeID int64) erro
 	)
 
 	return nil
+}
+
+// GetUserGroups retrieves the group IDs (as strings) that a user belongs to.
+func (s *UserAppService) GetUserGroups(ctx context.Context, snowflakeID int64) ([]string, error) {
+	u, err := s.userRepo.GetBySnowflakeID(ctx, snowflakeID)
+	if err != nil || u == nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	groups, err := s.groupRepo.GetGroupsByUserID(ctx, u.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user groups: %w", err)
+	}
+
+	result := make([]string, 0, len(groups))
+	for _, g := range groups {
+		result = append(result, strconv.FormatInt(g.SnowflakeID, 10))
+	}
+	return result, nil
 }

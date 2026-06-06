@@ -313,6 +313,7 @@ func (s *GroupAppService) GetGroupMembers(ctx context.Context, groupSnowflakeID 
 				UserID:      u.ID,
 				SnowflakeID: u.SnowflakeID,
 				Username:    u.Username,
+				Role:        u.Role,
 				Email:       u.Email,
 				CreatedAt:   m.CreatedAt,
 			})
@@ -348,6 +349,7 @@ func (s *GroupAppService) AddGroupMembers(ctx context.Context, groupSnowflakeID 
 				UserID:      u.ID,
 				SnowflakeID: u.SnowflakeID,
 				Username:    u.Username,
+				Role:        u.Role,
 				Email:       u.Email,
 			})
 		}

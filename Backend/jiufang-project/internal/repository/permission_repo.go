@@ -95,6 +95,21 @@ func (r *PermissionRepository) DeleteByGroupID(ctx context.Context, groupID uint
 	return nil
 }
 
+// ReplaceByGroupID deletes all existing permissions for a group and creates new ones in a single transaction.
+func (r *PermissionRepository) ReplaceByGroupID(ctx context.Context, groupID uint, permissions []permission.Permission) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("group_id = ?", groupID).Delete(&permission.Permission{}).Error; err != nil {
+			return fmt.Errorf("failed to delete old permissions: %w", err)
+		}
+		if len(permissions) > 0 {
+			if err := tx.Create(&permissions).Error; err != nil {
+				return fmt.Errorf("failed to create new permissions: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
 func (r *PermissionRepository) List(ctx context.Context, offset, limit int, groupID uint, resourceType string) ([]permission.Permission, int64, error) {
 	var permissions []permission.Permission
 	var total int64

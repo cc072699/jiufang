@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getAlertList, deleteAlert, updateAlert } from '../shared/api';
 import { confirmAction } from '../shared/ui';
 import type { AlertRecord } from '../shared/api/types';
+import { ACTIVE_STATUS_FILTER_OPTIONS, STATUS_COLORS, STATUS_LABELS } from '../shared/constants';
 
 const { Title } = Typography;
 
@@ -69,7 +70,7 @@ export default function AlertsPage() {
       title: '状态',
       dataIndex: 'status',
       width: 80,
-      render: (s: string) => <Tag color={s === 'active' ? 'green' : 'default'}>{s === 'active' ? '启用' : '停用'}</Tag>,
+      render: (s: string) => <Tag color={STATUS_COLORS[s]}>{STATUS_LABELS[s]}</Tag>,
     },
     {
       title: '上次触发',
@@ -121,11 +122,7 @@ export default function AlertsPage() {
             onChange={(v) => { setStatus(v); setPage(1); }}
             allowClear
             style={{ width: 120 }}
-            options={[
-              { label: '全部', value: undefined },
-              { label: '启用', value: 'active' },
-              { label: '停用', value: 'inactive' },
-            ]}
+            options={ACTIVE_STATUS_FILTER_OPTIONS}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/alerts/new')}>
             新建规则

@@ -3,6 +3,7 @@ import { SearchOutlined, HistoryOutlined, StarOutlined, ClockCircleOutlined } fr
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getHistoryList, getFavoriteList } from '../shared/api';
+import { QUERY_STATUS_MAP } from '../shared/constants';
 
 const { Title, Text } = Typography;
 
@@ -27,11 +28,6 @@ export default function WorkbenchPage() {
 
   const recentRecords = historyData?.records ?? [];
   const recentFavorites = favoriteData?.favorites ?? [];
-
-  const statusTagMap: Record<string, { color: string; label: string }> = {
-    success: { color: 'green', label: '成功' },
-    failed: { color: 'red', label: '失败' },
-  };
 
   return (
     <div>
@@ -66,7 +62,7 @@ export default function WorkbenchPage() {
                 <List
                   dataSource={recentRecords}
                   renderItem={(item) => {
-                    const tag = statusTagMap[item.status] ?? { color: 'default', label: item.status };
+                    const tag = QUERY_STATUS_MAP[item.status] ?? { color: 'default', label: item.status };
                     return (
                       <List.Item>
                         <List.Item.Meta

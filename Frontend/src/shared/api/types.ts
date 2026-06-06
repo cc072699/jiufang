@@ -41,10 +41,33 @@ export interface QueryResultData {
 }
 
 export interface ChartConfig {
-  chart_type: 'line' | 'bar' | 'pie';
-  title?: string;
-  x_field?: string;
-  y_field?: string;
+  type: 'bar_chart' | 'line_chart' | 'pie_chart' | 'table';
+  title: string;
+  x_axis?: {
+    type: string;
+    name: string;
+    unit?: string;
+    data?: string[];
+  };
+  y_axis?: {
+    type: string;
+    name: string;
+    unit?: string;
+  };
+  series?: {
+    name: string;
+    type: string;
+    data: unknown[];
+    format?: string;
+    color?: string;
+    label?: { show: boolean; position?: string; formatter?: string };
+  }[];
+  legend?: { show: boolean; position: string; data?: string[] };
+  tooltip?: { show: boolean; trigger: string; formatter?: string };
+  colors?: string[];
+  data_limit?: number;
+  empty_value_hint?: string;
+  can_switch_type?: boolean;
 }
 
 // --- API-002: 登录 ---
@@ -171,7 +194,7 @@ export interface PermissionRecord {
 export interface ConfigurePermissionData {
   group_id: string;
   permissions: PermissionRecord[];
-  created_at: string;
+  created_at?: string;
 }
 
 // --- API-013~015: 查询历史 ---
@@ -244,8 +267,10 @@ export interface ReportRecord {
   recipients: string[];
   recipients_count: number;
   status: 'active' | 'inactive';
+  description?: string;
   sql?: string;
   last_run_at?: string;
+  created_by?: string;
   created_at: string;
 }
 
@@ -262,6 +287,8 @@ export interface ReportDetailData {
   recipients: string[];
   description?: string;
   status: 'active' | 'inactive';
+  created_by?: string;
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -290,6 +317,7 @@ export interface AlertRecord {
   recipients: string[];
   recipients_count: number;
   status: 'active' | 'inactive';
+  description?: string;
   last_triggered_at?: string;
   created_at: string;
 }
@@ -306,6 +334,8 @@ export interface AlertDetailData {
   recipients: string[];
   description?: string;
   status: 'active' | 'inactive';
+  created_by?: string;
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -316,7 +346,7 @@ export interface PushRecord {
   source_id: string;
   source_name: string;
   recipient: string;
-  status: 'success' | 'failed';
+  status: 'success' | 'failed' | 'retrying';
   error_message?: string;
   pushed_at: string;
 }
@@ -331,7 +361,9 @@ export interface LogRecord {
   user_id: string;
   username: string;
   operation_type: string;
+  operation_object: string;
   operation_detail: string;
+  operation_result: string;
   ip_address: string;
   created_at: string;
 }
@@ -342,9 +374,8 @@ export interface LogListData extends PaginatedData {
 
 // --- 反馈提交 (PRD F13) ---
 export interface SubmitFeedbackRequest {
-  session_id: string;
-  query: string;
-  rating: 'satisfied' | 'dissatisfied';
+  query_record_id: string;
+  rating: 'satisfied' | 'unsatisfied';
   reason?: string;
 }
 

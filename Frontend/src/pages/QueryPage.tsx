@@ -136,7 +136,7 @@ export default function QueryPage() {
       }
       const assistantMsg: Message = {
         role: 'assistant',
-        content: parsedResult?.understanding ?? `SQL: ${detail.sql}`,
+        content: parsedResult?.understanding ?? detail.input,
         result: parsedResult,
         error: detail.status === 'failed' ? (detail.error_message || '查询失败') : undefined,
       };
@@ -157,7 +157,7 @@ export default function QueryPage() {
 
   const handleFeedback = async (sessionId: string, query: string) => {
     try {
-      await submitFeedback({ session_id: sessionId, query, rating: 'satisfied' });
+      await submitFeedback({ query_record_id: sessionId, rating: 'satisfied' });
       message.success('感谢反馈！');
     } catch {
       message.error('反馈提交失败，请稍后重试');
@@ -175,9 +175,8 @@ export default function QueryPage() {
     }
     try {
       await submitFeedback({
-        session_id: feedbackModal.sessionId,
-        query: feedbackModal.query,
-        rating: 'dissatisfied',
+        query_record_id: feedbackModal.sessionId,
+        rating: 'unsatisfied',
         reason: feedbackModal.reason.trim(),
       });
       message.success('感谢反馈！');
@@ -219,7 +218,15 @@ export default function QueryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const suggestedQuestions = ['上个月销售额最高的产品是什么？', '各个区域的库存总量'];
+  const suggestedQuestions = [
+    '查询所有供应商列表',
+    '采购单总数和总金额是多少',
+    '查询采购单及供应商名称',
+    '查询当前库存情况',
+    '销售订单总金额是多少',
+    '查询所有客户信息',
+    '查询生产任务列表',
+  ];
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 160px)', gap: 16 }}>
@@ -292,8 +299,8 @@ export default function QueryPage() {
               <div>
                 <Text type="secondary">输入自然语言问题，即可查询 ERP 数据</Text>
               </div>
-              <div style={{ marginTop: 12 }}>
-                <Space>
+              <div style={{ marginTop: 12, maxWidth: 640, marginInline: 'auto' }}>
+                <Space wrap>
                   {suggestedQuestions.map((q) => (
                     <Card
                       key={q}

@@ -119,7 +119,7 @@ func (h *FavoriteHandler) GetFavoriteList(c *gin.Context) {
 			Input:       fav.Input,
 			Sql:         fav.Sql,
 			Description: fav.Description,
-			CreatedAt:   fav.CreatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt:   fav.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		}
 	}
 

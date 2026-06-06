@@ -4,6 +4,7 @@ import { Form, Input, Select, Typography, Button, Space, message, Card } from 'a
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createAlert, updateAlert, getAlertList } from '../shared/api';
 import type { CreateAlertRequest, UpdateAlertRequest, AlertRecord } from '../shared/api/types';
+import { ACTIVE_STATUS_SELECT_OPTIONS } from '../shared/constants';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -130,10 +131,7 @@ export default function AlertFormPage() {
           </Form.Item>
           {isEdit && (
             <Form.Item name="status" label="状态">
-              <Select options={[
-                { label: '启用', value: 'active' },
-                { label: '停用', value: 'inactive' },
-              ]} />
+              <Select options={ACTIVE_STATUS_SELECT_OPTIONS} />
             </Form.Item>
           )}
           <Form.Item>

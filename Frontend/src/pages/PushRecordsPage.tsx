@@ -6,6 +6,7 @@ import { useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getPushRecordList } from '../shared/api';
 import type { PushRecord } from '../shared/api/types';
+import { PUSH_TYPE_LABELS, PUSH_TYPE_COLORS, PUSH_TYPE_FILTER_OPTIONS, PUSH_STATUS_LABELS, PUSH_STATUS_COLORS, PUSH_STATUS_FILTER_OPTIONS } from '../shared/constants';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -52,7 +53,7 @@ export default function PushRecordsPage() {
       title: '类型',
       dataIndex: 'push_type',
       width: 100,
-      render: (v: string) => <Tag color={v === 'report' ? 'blue' : 'orange'}>{v === 'report' ? '报告' : '预警'}</Tag>,
+      render: (v: string) => <Tag color={PUSH_TYPE_COLORS[v]}>{PUSH_TYPE_LABELS[v]}</Tag>,
     },
     { title: '来源名称', dataIndex: 'source_name', ellipsis: true },
     { title: '接收人', dataIndex: 'recipient', width: 120 },
@@ -60,7 +61,7 @@ export default function PushRecordsPage() {
       title: '状态',
       dataIndex: 'status',
       width: 100,
-      render: (s: string) => <Tag color={s === 'success' ? 'green' : 'red'}>{s === 'success' ? '成功' : '失败'}</Tag>,
+      render: (s: string) => <Tag color={PUSH_STATUS_COLORS[s]}>{PUSH_STATUS_LABELS[s]}</Tag>,
     },
     {
       title: '错误信息',
@@ -95,11 +96,7 @@ export default function PushRecordsPage() {
             onChange={(v) => { setPushType(v); setPage(1); }}
             allowClear
             style={{ width: 120 }}
-            options={[
-              { label: '全部', value: undefined },
-              { label: '报告', value: 'report' },
-              { label: '预警', value: 'alert' },
-            ]}
+            options={PUSH_TYPE_FILTER_OPTIONS}
           />
           <Select
             placeholder="推送状态"
@@ -107,11 +104,7 @@ export default function PushRecordsPage() {
             onChange={(v) => { setPushStatus(v); setPage(1); }}
             allowClear
             style={{ width: 120 }}
-            options={[
-              { label: '全部', value: undefined },
-              { label: '成功', value: 'success' },
-              { label: '失败', value: 'failed' },
-            ]}
+            options={PUSH_STATUS_FILTER_OPTIONS}
           />
           <RangePicker
             showTime

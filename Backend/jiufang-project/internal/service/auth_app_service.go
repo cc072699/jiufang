@@ -43,6 +43,7 @@ type UserInfo struct {
 	Username string
 	Role     string
 	Groups   []string // Snowflake IDs as strings
+	Email    string
 }
 
 func (s *AuthAppService) Login(ctx context.Context, req LoginRequest) (*LoginResponse, error) {
@@ -67,15 +68,21 @@ func (s *AuthAppService) Login(ctx context.Context, req LoginRequest) (*LoginRes
 		return nil, err
 	}
 
-	groupIDs := make([]int64, 0)
+	// Deduplicate group IDs using a set
+	groupIDSet := make(map[int64]bool)
 	for _, member := range members {
 		group, err := s.groupRepo.GetByID(ctx, member.GroupID)
 		if err != nil {
 			continue
 		}
 		if group != nil {
-			groupIDs = append(groupIDs, group.SnowflakeID)
+			groupIDSet[group.SnowflakeID] = true
 		}
+	}
+
+	groupIDs := make([]int64, 0, len(groupIDSet))
+	for id := range groupIDSet {
+		groupIDs = append(groupIDs, id)
 	}
 
 	// Convert snowflake IDs to strings for JSON response
@@ -98,6 +105,7 @@ func (s *AuthAppService) Login(ctx context.Context, req LoginRequest) (*LoginRes
 			Username: user.Username,
 			Role:     user.Role,
 			Groups:   groupIDStrings,
+			Email:    user.Email,
 		},
 	}, nil
 }

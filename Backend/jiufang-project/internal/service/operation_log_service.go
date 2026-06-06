@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"jiufang/internal/model/audit"
+	"jiufang/internal/pkg/id"
 	"jiufang/internal/repository"
 
 	"go.uber.org/zap"
@@ -28,6 +29,34 @@ func NewOperationLogService(
 		logRepo:  logRepo,
 		userRepo: userRepo,
 		logger:   logger,
+	}
+}
+
+// RecordOperation records an operation log entry.
+func (s *OperationLogService) RecordOperation(ctx context.Context, userID int64, opType audit.OperationType, object string, detail string, result audit.OperationResult, ip string) {
+	snowflakeID, err := id.Generate()
+	if err != nil {
+		s.logger.Warn("failed to generate snowflake ID for operation log", zap.Error(err))
+		return
+	}
+
+	var uid *int64
+	if userID > 0 {
+		uid = &userID
+	}
+
+	log := &audit.OperationLog{
+		SnowflakeID:     snowflakeID,
+		UserID:          uid,
+		OperationType:   opType,
+		OperationObject: object,
+		OperationDetail: detail,
+		OperationResult: result,
+		IPAddress:       ip,
+	}
+
+	if err := s.logRepo.Create(ctx, log); err != nil {
+		s.logger.Warn("failed to record operation log", zap.Error(err))
 	}
 }
 

@@ -23,9 +23,9 @@ func NewPermissionAppService(groupRepo repository.UserGroupRepositoryInterface, 
 }
 
 type PermissionRequest struct {
-	TableName       string
-	AllowedFields   string
-	FilterCondition string
+	TableName       string `json:"table_name"`
+	AllowedFields   string `json:"allowed_fields"`
+	FilterCondition string `json:"filter_condition"`
 }
 
 type PermissionDetail struct {
@@ -48,10 +48,6 @@ func (s *PermissionAppService) ConfigurePermissions(ctx context.Context, groupSn
 		return nil, pkgerrors.ErrGroupNotFound
 	}
 
-	if err := s.permissionRepo.DeleteByGroupID(ctx, group.ID); err != nil {
-		return nil, err
-	}
-
 	newPermissions := make([]permission.Permission, 0)
 	for _, req := range permissions {
 		snowflakeID, err := id.Generate()
@@ -70,10 +66,8 @@ func (s *PermissionAppService) ConfigurePermissions(ctx context.Context, groupSn
 		newPermissions = append(newPermissions, p)
 	}
 
-	if len(newPermissions) > 0 {
-		if err := s.permissionRepo.CreateBatch(ctx, newPermissions); err != nil {
-			return nil, err
-		}
+	if err := s.permissionRepo.ReplaceByGroupID(ctx, group.ID, newPermissions); err != nil {
+		return nil, err
 	}
 
 	return newPermissions, nil

@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"jiufang/internal/infrastructure/erp"
 	"jiufang/internal/model/report"
 	"jiufang/internal/pkg/id"
 	"jiufang/internal/repository"
@@ -23,19 +24,21 @@ type PushAppServiceInterface interface {
 type PushAppService struct {
 	reportRepo  repository.ReportRepositoryInterface
 	idGenerator id.SnowflakeGeneratorInterface
+	erpReader   erp.ERPReaderInterface
 	logger      *zap.Logger
-	// TODO: Add WeChatClient and QueryAppService dependencies when they are implemented
 }
 
 // NewPushAppService creates a new PushAppService instance.
 func NewPushAppService(
 	reportRepo repository.ReportRepositoryInterface,
 	idGenerator id.SnowflakeGeneratorInterface,
+	erpReader erp.ERPReaderInterface,
 	logger *zap.Logger,
 ) *PushAppService {
 	return &PushAppService{
 		reportRepo:  reportRepo,
 		idGenerator: idGenerator,
+		erpReader:   erpReader,
 		logger:      logger,
 	}
 }
@@ -47,10 +50,8 @@ func (s *PushAppService) ExecuteAndPushReport(ctx context.Context, scheduledRepo
 		zap.String("report_name", scheduledReport.Name),
 	)
 
-	// Execute SQL directly (no need to parse JSON)
-	// TODO: Execute query using QueryAppService when it's implemented
-	// For now, we'll simulate the query execution
-	queryResult, err := s.simulateQueryExecution(ctx, scheduledReport.SQL)
+	// Execute SQL against ERP database
+	queryResult, err := s.executeQuery(ctx, scheduledReport.SQL)
 	if err != nil {
 		s.logger.Error("failed to execute query",
 			zap.Int64("report_id", scheduledReport.SnowflakeID),
@@ -69,16 +70,11 @@ func (s *PushAppService) ExecuteAndPushReport(ctx context.Context, scheduledRepo
 		return s.recordPushFailure(ctx, scheduledReport, fmt.Errorf("failed to generate markdown content: %w", err))
 	}
 
-	// TODO: Push message using WeChatClient when it's implemented
-	// For now, we'll simulate the push operation
-	pushErr := s.simulatePushOperation(ctx, scheduledReport, pushContent)
-	if pushErr != nil {
-		s.logger.Error("failed to push message",
-			zap.Int64("report_id", scheduledReport.SnowflakeID),
-			zap.Error(pushErr),
-		)
-		return s.recordPushFailure(ctx, scheduledReport, pushErr)
-	}
+	// Push message (WeChat not yet integrated — log and record success)
+	s.logger.Info("push content generated (WeChat client not yet integrated)",
+		zap.Int64("report_id", scheduledReport.SnowflakeID),
+		zap.Int("content_length", len(pushContent)),
+	)
 
 	// Record successful push
 	return s.recordPushSuccess(ctx, scheduledReport, pushContent)
@@ -86,31 +82,28 @@ func (s *PushAppService) ExecuteAndPushReport(ctx context.Context, scheduledRepo
 
 // RetryFailedPushes retries failed push records.
 func (s *PushAppService) RetryFailedPushes(ctx context.Context) error {
-	s.logger.Info("starting to retry failed pushes")
-
-	// Get failed push records
-	// TODO: Implement method to get failed push records from repository
-	// For now, we'll skip this implementation
-
-	s.logger.Info("retry failed pushes completed")
+	s.logger.Info("retry failed pushes - not yet implemented")
 	return nil
 }
 
 // Helper methods
 
-func (s *PushAppService) simulateQueryExecution(ctx context.Context, sql string) (map[string]interface{}, error) {
-	// Simulate query execution
-	// In real implementation, this would call QueryAppService.ExecuteQuery
-	s.logger.Info("simulating query execution",
+func (s *PushAppService) executeQuery(ctx context.Context, sql string) (map[string]interface{}, error) {
+	s.logger.Info("executing report query against ERP database",
 		zap.String("sql", sql),
 	)
 
-	// Return simulated result
-	return map[string]interface{}{
-		"total_amount": 150000.00,
-		"record_count": 120,
+	results, err := s.erpReader.Query(ctx, sql)
+	if err != nil {
+		return nil, fmt.Errorf("ERP query execution failed: %w", err)
+	}
+
+	result := map[string]interface{}{
+		"record_count": len(results),
 		"query_time":   time.Now().Format(time.RFC3339),
-	}, nil
+		"rows":         results,
+	}
+	return result, nil
 }
 
 func (s *PushAppService) generateMarkdownContent(scheduledReport *report.ScheduledReport, queryResult map[string]interface{}) (string, error) {
@@ -133,18 +126,6 @@ func (s *PushAppService) generateMarkdownContent(scheduledReport *report.Schedul
 	content += fmt.Sprintf("\n*本报告由ERP对话式查询助手自动生成*\n")
 
 	return content, nil
-}
-
-func (s *PushAppService) simulatePushOperation(ctx context.Context, scheduledReport *report.ScheduledReport, pushContent string) error {
-	// Simulate push operation
-	// In real implementation, this would call WeChatClient.SendMessage
-	s.logger.Info("simulating push operation",
-		zap.Int64("report_id", scheduledReport.SnowflakeID),
-		zap.String("push_channel", "wechat"), // Default push channel
-	)
-
-	// Simulate success (in real implementation, this would call external API)
-	return nil
 }
 
 func (s *PushAppService) recordPushSuccess(ctx context.Context, scheduledReport *report.ScheduledReport, pushContent string) error {

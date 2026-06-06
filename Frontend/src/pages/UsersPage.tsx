@@ -7,20 +7,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getUserList, updateUser, deleteUser } from '../shared/api';
 import { confirmAction } from '../shared/ui';
 import type { UserRecord } from '../shared/api/types';
+import { ROLE_LABELS, ROLE_COLORS, ROLE_FILTER_OPTIONS, USER_STATUS_LABELS, USER_STATUS_COLORS, USER_STATUS_FILTER_OPTIONS } from '../shared/constants';
 
 const { Title } = Typography;
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: '管理员',
-  manager: '部门经理',
-  executive: '高管',
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  admin: 'red',
-  manager: 'blue',
-  executive: 'green',
-};
 
 export default function UsersPage() {
   const navigate = useNavigate();
@@ -86,7 +75,7 @@ export default function UsersPage() {
       title: '状态',
       dataIndex: 'status',
       width: 80,
-      render: (s: number) => <Tag color={s === 1 ? 'green' : 'default'}>{s === 1 ? '正常' : '停用'}</Tag>,
+      render: (s: number) => <Tag color={USER_STATUS_COLORS[s]}>{USER_STATUS_LABELS[s] || String(s)}</Tag>,
     },
     {
       title: '创建时间',
@@ -145,12 +134,7 @@ export default function UsersPage() {
           onChange={(v) => { setRole(v); setPage(1); }}
           allowClear
           style={{ width: 140 }}
-          options={[
-            { label: '全部角色', value: undefined },
-            { label: '管理员', value: 'admin' },
-            { label: '部门经理', value: 'manager' },
-            { label: '高管', value: 'executive' },
-          ]}
+          options={ROLE_FILTER_OPTIONS}
         />
         <Select
           placeholder="状态筛选"
@@ -158,11 +142,7 @@ export default function UsersPage() {
           onChange={(v) => { setStatus(v); setPage(1); }}
           allowClear
           style={{ width: 120 }}
-          options={[
-            { label: '全部状态', value: undefined },
-            { label: '正常', value: 1 },
-            { label: '停用', value: 0 },
-          ]}
+          options={USER_STATUS_FILTER_OPTIONS}
         />
         <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
           刷新

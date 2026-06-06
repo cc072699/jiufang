@@ -6,6 +6,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../shared/auth/store';
 import { logout as logoutApi, changePassword, uploadAvatar, getProfile } from '../shared/api';
 import type { UploadProps } from 'antd';
+import { ROLE_LABELS } from '../shared/constants';
 
 const { Title, Text } = Typography;
 
@@ -91,12 +92,6 @@ export default function ProfilePage() {
     }
   };
 
-  const roleLabels: Record<string, string> = {
-    admin: '管理员',
-    manager: '部门经理',
-    executive: '高管',
-  };
-
   return (
     <div>
       <Title level={4}>个人中心</Title>
@@ -137,12 +132,12 @@ export default function ProfilePage() {
             )}
           </Upload>
           <Title level={4} style={{ marginTop: 8, marginBottom: 0 }}>{user?.username}</Title>
-          <Text type="secondary">{roleLabels[user?.role || ''] || user?.role}</Text>
+          <Text type="secondary">{ROLE_LABELS[user?.role || ''] || user?.role}</Text>
         </div>
 
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="用户名">{user?.username}</Descriptions.Item>
-          <Descriptions.Item label="角色">{roleLabels[user?.role || ''] || user?.role}</Descriptions.Item>
+          <Descriptions.Item label="角色">{ROLE_LABELS[user?.role || ''] || user?.role}</Descriptions.Item>
           <Descriptions.Item label="邮箱">{profile?.email || user?.email || '-'}</Descriptions.Item>
           <Descriptions.Item label="用户组">{user?.groups?.join(', ') || '-'}</Descriptions.Item>
         </Descriptions>

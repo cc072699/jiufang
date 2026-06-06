@@ -84,13 +84,6 @@ export default function LoginPage() {
             </Button>
           </Form.Item>
         </Form>
-        {import.meta.env.DEV && (
-          <div style={{ textAlign: 'center', marginTop: 8 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              测试账号: admin1 或 admin2 / 214510115lhl
-            </Text>
-          </div>
-        )}
       </Card>
     </div>
   );

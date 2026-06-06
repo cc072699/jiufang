@@ -246,11 +246,6 @@ export async function getLogList(params?: LogListParams) {
   return getData(res);
 }
 
-// ============================================================
-// 以下接口 PRD 引用但 detailed-design.md 未定义 - 仅 Mock，不真实调用
-// 待后端补充接口定义后需对齐
-// ============================================================
-
 // 提交查询反馈 (PRD F13)
 export async function submitFeedback(params: SubmitFeedbackRequest) {
   await apiClient.post<ApiResponse<null>>('/feedbacks', params);
@@ -286,4 +281,20 @@ export async function addGroupMember(groupId: string, userId: string) {
 // 移除用户组成员
 export async function removeGroupMember(groupId: string, userId: string) {
   await apiClient.delete<ApiResponse<null>>(`/groups/${groupId}/members/${userId}`);
+}
+
+// ERP 元数据：获取表结构列表
+export interface TableColumnInfo {
+  name: string;
+  type: string;
+  comment: string;
+}
+export interface TableSchemaInfo {
+  name: string;
+  label: string;
+  columns: TableColumnInfo[];
+}
+export async function getERPTableSchemas(): Promise<TableSchemaInfo[]> {
+  const res = await apiClient.get<ApiResponse<TableSchemaInfo[]>>('/metadata/tables');
+  return getData(res);
 }

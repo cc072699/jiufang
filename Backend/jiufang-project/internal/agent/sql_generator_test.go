@@ -91,7 +91,7 @@ func TestSQLGenerator_Generate(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockLLM := tt.mockLLM(ctrl)
-			generator := NewSQLGenerator(mockLLM)
+			generator := NewSQLGenerator(mockLLM, nil)
 
 			// Act
 			result, err := generator.Generate(context.Background(), tt.intent, tt.entities)
@@ -164,7 +164,7 @@ func TestSQLGenerator_GenerateWithSchema(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockLLM := tt.mockLLM(ctrl)
-			generator := NewSQLGenerator(mockLLM)
+			generator := NewSQLGenerator(mockLLM, nil)
 
 			// Act
 			result, err := generator.GenerateWithSchema(context.Background(), tt.intent, tt.entities, tt.tableSchema)
@@ -234,7 +234,7 @@ func TestSQLGenerator_GenerateWithPermissionFilter(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockLLM := tt.mockLLM(ctrl)
-			generator := NewSQLGenerator(mockLLM)
+			generator := NewSQLGenerator(mockLLM, nil)
 
 			// Act
 			result, err := generator.GenerateWithPermissionFilter(context.Background(), tt.intent, tt.entities, tt.permissionFilter)

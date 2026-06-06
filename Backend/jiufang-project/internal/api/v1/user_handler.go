@@ -59,12 +59,16 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	// Build response
+	groups, _ := h.userService.GetUserGroups(ctx, newUser.SnowflakeID)
+	if groups == nil {
+		groups = []string{}
+	}
 	userResp := user.UserResponse{
 		ID:        strconv.FormatInt(newUser.SnowflakeID, 10),
 		Username:  newUser.Username,
 		Email:     newUser.Email,
 		Role:      user.Role(newUser.Role),
-		Groups:    []string{}, // TODO: Get user groups
+		Groups:    groups,
 		Status:    newUser.Status,
 		CreatedAt: newUser.CreatedAt,
 	}
@@ -100,12 +104,16 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	}
 
 	// Build response
+	groups, _ := h.userService.GetUserGroups(ctx, u.SnowflakeID)
+	if groups == nil {
+		groups = []string{}
+	}
 	userResp := user.UserResponse{
 		ID:        strconv.FormatInt(u.SnowflakeID, 10),
 		Username:  u.Username,
 		Email:     u.Email,
 		Role:      user.Role(u.Role),
-		Groups:    []string{}, // TODO: Get user groups
+		Groups:    groups,
 		Status:    u.Status,
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
@@ -156,12 +164,16 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 	// Build response
 	userList := make([]user.UserResponse, 0, len(users))
 	for _, u := range users {
+		groups, _ := h.userService.GetUserGroups(ctx, u.SnowflakeID)
+		if groups == nil {
+			groups = []string{}
+		}
 		userList = append(userList, user.UserResponse{
 			ID:        strconv.FormatInt(u.SnowflakeID, 10),
 			Username:  u.Username,
 			Email:     u.Email,
 			Role:      user.Role(u.Role),
-			Groups:    []string{}, // TODO: Get user groups
+			Groups:    groups,
 			Status:    u.Status,
 			CreatedAt: u.CreatedAt,
 			UpdatedAt: u.UpdatedAt,
@@ -214,12 +226,16 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// Build response
+	groups, _ := h.userService.GetUserGroups(ctx, updatedUser.SnowflakeID)
+	if groups == nil {
+		groups = []string{}
+	}
 	userResp := user.UserResponse{
 		ID:        strconv.FormatInt(updatedUser.SnowflakeID, 10),
 		Username:  updatedUser.Username,
 		Email:     updatedUser.Email,
 		Role:      user.Role(updatedUser.Role),
-		Groups:    []string{}, // TODO: Get user groups
+		Groups:    groups,
 		Status:    updatedUser.Status,
 		CreatedAt: updatedUser.CreatedAt,
 		UpdatedAt: updatedUser.UpdatedAt,

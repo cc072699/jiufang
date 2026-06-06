@@ -4,11 +4,13 @@ package v1
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"jiufang/internal/middleware"
+	agentmodel "jiufang/internal/model/agent"
 	"jiufang/internal/model/query"
 	"jiufang/internal/pkg/id"
 	"jiufang/internal/pkg/response"
@@ -17,15 +19,17 @@ import (
 
 // QueryHandler handles natural language query HTTP requests.
 type QueryHandler struct {
-	queryService *service.QueryAppService
-	logger       *zap.Logger
+	queryService      *service.QueryAppService
+	permissionService *service.PermissionAppService
+	logger            *zap.Logger
 }
 
 // NewQueryHandler creates a new QueryHandler instance.
-func NewQueryHandler(queryService *service.QueryAppService, logger *zap.Logger) *QueryHandler {
+func NewQueryHandler(queryService *service.QueryAppService, permissionService *service.PermissionAppService, logger *zap.Logger) *QueryHandler {
 	return &QueryHandler{
-		queryService: queryService,
-		logger:       logger,
+		queryService:      queryService,
+		permissionService: permissionService,
+		logger:            logger,
 	}
 }
 
@@ -80,8 +84,18 @@ func (h *QueryHandler) ExecuteQuery(c *gin.Context) {
 		return
 	}
 
-	// Execute query
-	result, err := h.queryService.ExecuteQuery(ctx, req.Input, sessionID, uint(userID))
+	// Load user permissions from groups
+	groupIDs := middleware.GetGroups(c)
+	queryContext := h.buildQueryContext(c, sessionID, uint(userID), groupIDs)
+
+	// Execute query with or without permission filtering
+	var result *agentmodel.QueryResult
+	var err error
+	if queryContext != nil && len(queryContext.AllowedTables) > 0 {
+		result, err = h.queryService.ExecuteQueryWithPermission(ctx, req.Input, queryContext)
+	} else {
+		result, err = h.queryService.ExecuteQuery(ctx, req.Input, sessionID, uint(userID))
+	}
 	if err != nil {
 		h.logger.Error("Failed to execute query",
 			zap.String("input", req.Input),
@@ -119,7 +133,47 @@ func (h *QueryHandler) ExecuteQuery(c *gin.Context) {
 	response.Success(c, queryResult)
 }
 
-// buildColumnDefinitions builds column definitions from query result data.
+// buildQueryContext loads permissions for the user's groups and builds a QueryContext.
+func (h *QueryHandler) buildQueryContext(c *gin.Context, sessionID string, userID uint, groupIDs []int64) *agentmodel.QueryContext {
+	if len(groupIDs) == 0 || h.permissionService == nil {
+		return nil
+	}
+
+	reqCtx := c.Request.Context()
+	var allowedTables []string
+	var allowedFields = make(map[string][]string)
+
+	for _, groupID := range groupIDs {
+		perms, err := h.permissionService.GetPermissionsByGroup(reqCtx, groupID)
+		if err != nil {
+			h.logger.Warn("failed to load permissions for group", zap.Int64("group_id", groupID), zap.Error(err))
+			continue
+		}
+		for _, p := range perms {
+			if p.TableName != "" {
+				allowedTables = append(allowedTables, p.TableName)
+				if p.AllowedFields != "" && p.AllowedFields != "*" {
+					fields := strings.Split(p.AllowedFields, ",")
+					for i := range fields {
+						fields[i] = strings.TrimSpace(fields[i])
+					}
+					allowedFields[p.TableName] = append(allowedFields[p.TableName], fields...)
+				}
+			}
+		}
+	}
+
+	if len(allowedTables) == 0 {
+		return nil
+	}
+
+	return &agentmodel.QueryContext{
+		UserID:        userID,
+		SessionID:     sessionID,
+		AllowedTables: allowedTables,
+		AllowedFields: allowedFields,
+	}
+}
 func buildColumnDefinitions(data []map[string]interface{}) []query.ColumnDefinition {
 	if len(data) == 0 {
 		return []query.ColumnDefinition{}

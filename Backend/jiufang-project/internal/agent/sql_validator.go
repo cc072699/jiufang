@@ -19,19 +19,18 @@ type SQLValidator struct {
 
 // NewSQLValidator creates a new SQL validator.
 func NewSQLValidator() *SQLValidator {
-	// Compile dangerous keywords pattern
-	dangerousKeywords := regexp.MustCompile(`(?i)(DELETE|UPDATE|INSERT|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|MERGE|CALL)`)
+	// Compile dangerous keywords pattern (with word boundaries to avoid false positives on column names like updated_at)
+	dangerousKeywords := regexp.MustCompile(`(?i)\b(DELETE|UPDATE|INSERT|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|MERGE|CALL)\b`)
 
 	// Additional dangerous patterns
 	dangerousPatterns := []string{
-		"--",        // SQL comment injection
-		";",         // Multiple statement injection
-		"/*",        // Block comment start
-		"*/",        // Block comment end
-		"UNION",     // UNION injection
+		"--",           // SQL comment injection
+		";",            // Multiple statement injection
+		"/*",           // Block comment start
+		"*/",           // Block comment end
 		"INTO OUTFILE", // File operations
 		"INTO DUMPFILE", // File operations
-		"LOAD_FILE", // File operations
+		"LOAD_FILE",    // File operations
 	}
 
 	return &SQLValidator{
@@ -44,8 +43,11 @@ func NewSQLValidator() *SQLValidator {
 
 // Validate validates the SQL for safety.
 func (v *SQLValidator) Validate(sql string) error {
+	// Trim trailing semicolons — LLM-generated SQL often appends them
+	sql = strings.TrimRight(strings.TrimSpace(sql), ";")
+
 	// Check if SQL is empty
-	if strings.TrimSpace(sql) == "" {
+	if sql == "" {
 		return agent.NewClarificationRequest("empty_sql", "SQL语句为空", "", "", nil)
 	}
 
@@ -174,20 +176,15 @@ func (v *SQLValidator) GetMaxResultRows() int {
 
 // AddSafetyLimit adds LIMIT clause to SQL if not present.
 func (v *SQLValidator) AddSafetyLimit(sql string) string {
+	// Trim trailing semicolons before processing
+	sql = strings.TrimRight(strings.TrimSpace(sql), ";")
+
 	if strings.Contains(strings.ToUpper(sql), "LIMIT") {
 		return sql
 	}
 
-	// Find position to insert LIMIT
-	insertPos := len(sql)
-	for _, keyword := range []string{"ORDER BY", "GROUP BY", "HAVING"} {
-		if idx := strings.Index(strings.ToUpper(sql), keyword); idx > 0 && idx < insertPos {
-			insertPos = idx
-		}
-	}
-
-	// Add LIMIT before ORDER BY/GROUP BY
-	return sql[:insertPos] + fmt.Sprintf(" LIMIT %d ", v.maxResultRows) + sql[insertPos:]
+	// Append LIMIT at the end (valid for all MySQL query patterns)
+	return sql + fmt.Sprintf(" LIMIT %d", v.maxResultRows)
 }
 
 // extractTablesFromSQL extracts table names from SQL.
@@ -256,6 +253,9 @@ type SQLValidationResult struct {
 
 // ValidateDetailed performs detailed validation and returns result.
 func (v *SQLValidator) ValidateDetailed(sql string) *SQLValidationResult {
+	// Trim trailing semicolons — LLM-generated SQL often appends them
+	sql = strings.TrimRight(strings.TrimSpace(sql), ";")
+
 	result := &SQLValidationResult{
 		IsValid:    true,
 		Errors:     []string{},

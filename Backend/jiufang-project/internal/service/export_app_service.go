@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -189,8 +190,9 @@ func (s *ExportAppService) generatePDF(data []map[string]interface{}, title stri
 
 // parseQueryResult parses the query result JSON string into data structure.
 func parseQueryResult(resultJSON string, data *[]map[string]interface{}) error {
-	// TODO: Implement JSON parsing
-	// This is a placeholder implementation
-	*data = []map[string]interface{}{}
-	return nil
+	if resultJSON == "" {
+		*data = []map[string]interface{}{}
+		return nil
+	}
+	return json.Unmarshal([]byte(resultJSON), data)
 }

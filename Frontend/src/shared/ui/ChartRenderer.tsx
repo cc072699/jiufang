@@ -54,13 +54,59 @@ function buildEChartsOption(
   columns?: ColumnDef[],
   rows?: Record<string, unknown>[],
 ) {
-  if (!columns || !rows) return {};
+  // If backend provides a complete ECharts config with series data, use it directly
+  if (config.series && config.series.length > 0) {
+    const option: Record<string, unknown> = {};
 
-  const xField = config.x_field || columns[0]?.name || 'x';
-  const yField = config.y_field || columns[1]?.name || 'y';
+    if (config.title) {
+      option.title = { text: config.title, left: 'center' };
+    }
 
-  // Pie chart uses a different ECharts structure
-  if (config.chart_type === 'pie') {
+    if (config.tooltip) {
+      option.tooltip = config.tooltip;
+    }
+
+    if (config.legend) {
+      option.legend = config.legend;
+    }
+
+    if (config.colors) {
+      option.color = config.colors;
+    }
+
+    if (config.x_axis) {
+      option.xAxis = {
+        type: config.x_axis.type,
+        data: config.x_axis.data,
+        name: config.x_axis.name,
+      };
+    }
+
+    if (config.y_axis) {
+      option.yAxis = {
+        type: config.y_axis.type,
+        name: config.y_axis.name,
+      };
+    }
+
+    option.series = config.series.map((s) => ({
+      name: s.name,
+      type: s.type,
+      data: s.data,
+      ...(s.label ? { label: s.label } : {}),
+      ...(s.color ? { color: s.color } : {}),
+    }));
+
+    return option;
+  }
+
+  // Fallback: build simple chart from rows data
+  if (!columns || !rows || rows.length === 0) return {};
+
+  const xField = columns[0]?.name || 'x';
+  const yField = columns[1]?.name || 'y';
+
+  if (config.type === 'pie_chart') {
     const pieData = rows.map((r) => ({
       name: String(r[xField] ?? ''),
       value: Number(r[yField]) || 0,
@@ -68,13 +114,7 @@ function buildEChartsOption(
     return {
       title: config.title ? { text: config.title, left: 'center' } : undefined,
       tooltip: { trigger: 'item' as const },
-      series: [
-        {
-          type: 'pie' as const,
-          radius: '50%',
-          data: pieData,
-        },
-      ],
+      series: [{ type: 'pie' as const, radius: '50%', data: pieData }],
     };
   }
 
@@ -89,8 +129,8 @@ function buildEChartsOption(
     series: [
       {
         data: yData,
-        type: config.chart_type || 'bar',
-        ...(config.chart_type === 'line' ? { smooth: true } : {}),
+        type: config.type === 'line_chart' ? ('line' as const) : ('bar' as const),
+        ...(config.type === 'line_chart' ? { smooth: true } : {}),
       },
     ],
   };

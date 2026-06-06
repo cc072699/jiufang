@@ -5,51 +5,9 @@ import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { getLogList } from '../shared/api';
 import type { LogRecord } from '../shared/api/types';
+import { OP_TYPE_LABELS, OP_TYPE_COLORS, OP_FILTER_OPTIONS } from '../shared/constants';
 
 const { Title, Text } = Typography;
-
-const OP_TYPE_LABELS: Record<string, string> = {
-  login: '登录',
-  logout: '登出',
-  query: '查询',
-  create_user: '创建用户',
-  update_user: '更新用户',
-  delete_user: '删除用户',
-  config_permission: '更新权限',
-  create_report: '创建报告',
-  update_report: '更新报告',
-  delete_report: '删除报告',
-  create_alert: '创建预警',
-  update_alert: '更新预警',
-  delete_alert: '删除预警',
-};
-
-// 筛选下拉: 设计文档 API-028 定义的 6 种筛选参数值
-const OP_FILTER_OPTIONS = [
-  { label: '登录', value: 'login' },
-  { label: '登出', value: 'logout' },
-  { label: '查询', value: 'query' },
-  { label: '创建', value: 'create' },
-  { label: '更新', value: 'update' },
-  { label: '删除', value: 'delete' },
-];
-
-const OP_TYPE_COLORS: Record<string, string> = {
-  login: 'green',
-  logout: 'default',
-  query: 'blue',
-  create_user: 'orange',
-  update_user: 'orange',
-  delete_user: 'red',
-  create_group: 'purple',
-  update_permission: 'purple',
-  create_report: 'cyan',
-  update_report: 'cyan',
-  delete_report: 'red',
-  create_alert: 'magenta',
-  update_alert: 'magenta',
-  delete_alert: 'red',
-};
 
 export default function LogsPage() {
   const [page, setPage] = useState(1);

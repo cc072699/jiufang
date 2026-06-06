@@ -168,7 +168,7 @@ func main() {
 
 	// Step 11: Initialize services
 	authService := service.NewAuthAppService(userRepo, userGroupRepo, jwtManager)
-	queryService := service.NewQueryAppService(llmClient, erpReader, log)
+	queryService := service.NewQueryAppServiceWithHistory(llmClient, erpReader, queryRepo, idGenerator, log)
 	userService := service.NewUserAppService(userRepo, userGroupRepo, idGenerator, log)
 	groupService := service.NewGroupAppService(userGroupRepo, userRepo, permissionRepo)
 	permissionService := service.NewPermissionAppService(userGroupRepo, permissionRepo)
@@ -185,6 +185,7 @@ func main() {
 
 	// Step 12: Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
+	operationLogger := middleware.NewOperationLogger(operationLogService)
 
 	// Step 12: Create Gin engine
 	gin.SetMode(cfg.Server.Mode)
@@ -204,6 +205,7 @@ func main() {
 		AllowCredentials:  true,
 		MaxAge:            12 * 3600,
 	}))
+	router.Use(operationLogger.Log())
 
 	// Step 14: Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -232,6 +234,7 @@ func main() {
 		operationLogService,
 		queryService,
 		userService,
+		erpReader,
 		log,
 	)
 
@@ -241,8 +244,8 @@ func main() {
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 120 * time.Second,
 	}
 
 	// Start server in a goroutine

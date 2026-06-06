@@ -59,8 +59,8 @@ func NewReader(config *ERPConfig) (*Reader, error) {
 	sqlDB.SetMaxIdleConns(config.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(config.ConnMaxLifetime)
 
-	// Compile dangerous SQL patterns
-	dangerousSQL := regexp.MustCompile(`(?i)(DELETE|UPDATE|INSERT|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE)`)
+	// Compile dangerous SQL patterns (with word boundaries to avoid false positives on column names like updated_at)
+	dangerousSQL := regexp.MustCompile(`(?i)\b(DELETE|UPDATE|INSERT|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE)\b`)
 
 	return &Reader{
 		db:           db,

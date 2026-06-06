@@ -3,6 +3,7 @@ package v1
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -77,12 +78,26 @@ func (h *GroupHandler) CreateGroup(c *gin.Context) {
 		return
 	}
 
-	// Convert SnowflakeID to string to avoid JavaScript precision loss
-	groupResp := GroupResponse{
-		ID:          strconv.FormatInt(group.SnowflakeID, 10),
-		Name:        group.Name,
-		Description: group.Description,
-		CreatedAt:   group.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
+	// Fetch members for the newly created group
+	members := make([]gin.H, 0)
+	fullGroup, err := h.groupService.GetGroup(c.Request.Context(), group.SnowflakeID)
+	if err == nil && fullGroup.Members != nil {
+		for _, m := range fullGroup.Members {
+			members = append(members, gin.H{
+				"id":       strconv.FormatInt(m.SnowflakeID, 10),
+				"username": m.Username,
+				"email":    m.Email,
+				"role":     m.Role,
+			})
+		}
+	}
+
+	groupResp := gin.H{
+		"id":          strconv.FormatInt(group.SnowflakeID, 10),
+		"name":        group.Name,
+		"description": group.Description,
+		"members":     members,
+		"created_at":  group.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 
 	response.Success(c, groupResp)
@@ -196,10 +211,25 @@ func (h *GroupHandler) UpdateGroup(c *gin.Context) {
 		return
 	}
 
+	// Fetch members for the updated group
+	members := make([]gin.H, 0)
+	fullGroup, err := h.groupService.GetGroup(c.Request.Context(), groupID)
+	if err == nil && fullGroup.Members != nil {
+		for _, m := range fullGroup.Members {
+			members = append(members, gin.H{
+				"id":       strconv.FormatInt(m.SnowflakeID, 10),
+				"username": m.Username,
+				"email":    m.Email,
+				"role":     m.Role,
+			})
+		}
+	}
+
 	response.Success(c, gin.H{
 		"id":          strconv.FormatInt(group.SnowflakeID, 10),
 		"name":        group.Name,
 		"description": group.Description,
+		"members":     members,
 		"updated_at":  group.UpdatedAt,
 	})
 }
@@ -266,6 +296,7 @@ func (h *GroupHandler) ConfigurePermissions(c *gin.Context) {
 	response.Success(c, gin.H{
 		"group_id":    strconv.FormatInt(groupID, 10),
 		"permissions": permissionList,
+		"created_at":  time.Now().Format("2006-01-02T15:04:05Z"),
 	})
 }
 

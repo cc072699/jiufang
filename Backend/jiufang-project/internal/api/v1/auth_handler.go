@@ -59,6 +59,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"username": loginResp.User.Username,
 			"role":     loginResp.User.Role,
 			"groups":   loginResp.User.Groups,
+			"email":    loginResp.User.Email,
 		},
 	})
 }

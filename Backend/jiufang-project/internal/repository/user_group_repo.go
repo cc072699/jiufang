@@ -9,6 +9,7 @@ import (
 
 	"jiufang/internal/model/permission"
 	"jiufang/internal/model/user"
+	"jiufang/internal/pkg/id"
 )
 
 type UserGroupRepository struct {
@@ -118,9 +119,14 @@ func (r *UserGroupRepository) GetMemberCount(ctx context.Context, groupID uint) 
 func (r *UserGroupRepository) AddMembers(ctx context.Context, groupID uint, userIDs []uint) error {
 	members := make([]user.UserGroupMember, len(userIDs))
 	for i, userID := range userIDs {
+		snowflakeID, err := id.Generate()
+		if err != nil {
+			return fmt.Errorf("failed to generate snowflake ID: %w", err)
+		}
 		members[i] = user.UserGroupMember{
-			UserID:  userID,
-			GroupID: groupID,
+			SnowflakeID: snowflakeID,
+			UserID:      userID,
+			GroupID:     groupID,
 		}
 	}
 

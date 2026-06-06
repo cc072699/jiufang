@@ -4,6 +4,7 @@ import { Form, Input, Select, DatePicker, Typography, Button, Space, message, Ca
 import type { Dayjs } from 'dayjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createReport, updateReport, getReportList } from '../shared/api';
+import { SCHEDULE_SELECT_OPTIONS, ACTIVE_STATUS_SELECT_OPTIONS } from '../shared/constants';
 import type { CreateReportRequest, UpdateReportRequest, ReportRecord } from '../shared/api/types';
 
 const { Title, Text } = Typography;
@@ -115,11 +116,7 @@ export default function ReportFormPage() {
             <TextArea rows={4} placeholder="SELECT product_name, SUM(amount) FROM sales WHERE ..." />
           </Form.Item>
           <Form.Item name="schedule_type" label="推送频率" rules={[{ required: true }]}>
-            <Select options={[
-              { label: '每日', value: 'daily' },
-              { label: '每周', value: 'weekly' },
-              { label: '每月', value: 'monthly' },
-            ]} />
+            <Select options={SCHEDULE_SELECT_OPTIONS} />
           </Form.Item>
           <Form.Item
             name="schedule_time"
@@ -140,10 +137,7 @@ export default function ReportFormPage() {
           </Form.Item>
           {isEdit && (
             <Form.Item name="status" label="状态">
-              <Select options={[
-                { label: '启用', value: 'active' },
-                { label: '停用', value: 'inactive' },
-              ]} />
+              <Select options={ACTIVE_STATUS_SELECT_OPTIONS} />
             </Form.Item>
           )}
           <Form.Item>

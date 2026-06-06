@@ -81,7 +81,19 @@ func (f *Factory) GetClient(config *LLMConfig) (LLMClientInterface, error) {
 		f.clients[config.Provider] = client
 		return client, nil
 
-	case "ark", "volcengine":
+	case "xunfei":
+			// Xunfei Spark uses OpenAI-compatible API
+			if config.Endpoint == "" {
+				config.Endpoint = "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2"
+			}
+			client, err := NewOpenAIClient(config)
+			if err != nil {
+				return nil, err
+			}
+			f.clients[config.Provider] = client
+			return client, nil
+
+		case "ark", "volcengine":
 		client, err := NewARKClient(config)
 		if err != nil {
 			return nil, err

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getHistoryList, getHistoryDetail, deleteHistory } from '../shared/api';
 import { confirmAction } from '../shared/ui';
+import { QUERY_STATUS_MAP, QUERY_STATUS_FILTER_OPTIONS } from '../shared/constants';
 import type { HistoryRecord, HistoryDetailData } from '../shared/api/types';
 import type { Dayjs } from 'dayjs';
 
@@ -88,11 +89,6 @@ export default function HistoryPage() {
     setPage(1);
   };
 
-  const statusTagMap: Record<string, { color: string; label: string }> = {
-    success: { color: 'green', label: '成功' },
-    failed: { color: 'red', label: '失败' },
-  };
-
   const columns: ColumnsType<HistoryRecord> = [
     {
       title: '查询内容',
@@ -105,7 +101,7 @@ export default function HistoryPage() {
       dataIndex: 'status',
       width: 100,
       render: (s: string) => {
-        const tag = statusTagMap[s] ?? { color: 'default', label: s };
+        const tag = QUERY_STATUS_MAP[s] ?? { color: 'default', label: s };
         return <Tag color={tag.color}>{tag.label}</Tag>;
       },
     },
@@ -157,11 +153,7 @@ export default function HistoryPage() {
             onChange={(v) => { setStatus(v); setPage(1); }}
             allowClear
             style={{ width: 120 }}
-            options={[
-              { label: '全部', value: undefined },
-              { label: '成功', value: 'success' },
-              { label: '失败', value: 'failed' },
-            ]}
+            options={QUERY_STATUS_FILTER_OPTIONS}
           />
           <RangePicker
             showTime
@@ -202,8 +194,8 @@ export default function HistoryPage() {
             <p><strong>生成 SQL：</strong><code>{detailData.sql}</code></p>
             <p>
               <strong>状态：</strong>
-              <Tag color={statusTagMap[detailData.status]?.color ?? 'default'}>
-                {statusTagMap[detailData.status]?.label ?? detailData.status}
+              <Tag color={QUERY_STATUS_MAP[detailData.status]?.color ?? 'default'}>
+                {QUERY_STATUS_MAP[detailData.status]?.label ?? detailData.status}
               </Tag>
             </p>
             {detailData.error_message && <p><strong>错误信息：</strong>{detailData.error_message}</p>}

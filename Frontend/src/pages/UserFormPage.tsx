@@ -4,6 +4,7 @@ import { Form, Input, Select, Typography, Button, Space, message, Card } from 'a
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createUser, updateUser, getUserList, getGroupList } from '../shared/api';
 import type { CreateUserRequest, UpdateUserRequest } from '../shared/api/types';
+import { ROLE_SELECT_OPTIONS, USER_STATUS_SELECT_OPTIONS } from '../shared/constants';
 
 const { Title } = Typography;
 
@@ -139,11 +140,7 @@ export default function UserFormPage() {
 
           <Form.Item name="role" label="角色" rules={[{ required: true }]}>
             <Select
-              options={[
-                { label: '管理员', value: 'admin' },
-                { label: '部门经理', value: 'manager' },
-                { label: '高管', value: 'executive' },
-              ]}
+              options={ROLE_SELECT_OPTIONS}
             />
           </Form.Item>
 
@@ -159,10 +156,7 @@ export default function UserFormPage() {
           {isEdit && (
             <Form.Item name="status" label="状态">
               <Select
-                options={[
-                  { label: '正常', value: 1 },
-                  { label: '停用', value: 0 },
-                ]}
+                options={USER_STATUS_SELECT_OPTIONS}
               />
             </Form.Item>
           )}

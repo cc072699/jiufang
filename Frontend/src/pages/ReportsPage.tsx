@@ -6,15 +6,10 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getReportList, deleteReport, updateReport } from '../shared/api';
 import { confirmAction } from '../shared/ui';
+import { SCHEDULE_LABELS, ACTIVE_STATUS_FILTER_OPTIONS, STATUS_LABELS, STATUS_COLORS } from '../shared/constants';
 import type { ReportRecord } from '../shared/api/types';
 
 const { Title } = Typography;
-
-const SCHEDULE_LABELS: Record<string, string> = {
-  daily: '每日',
-  weekly: '每周',
-  monthly: '每月',
-};
 
 export default function ReportsPage() {
   const navigate = useNavigate();
@@ -86,7 +81,7 @@ export default function ReportsPage() {
       title: '状态',
       dataIndex: 'status',
       width: 80,
-      render: (s: string) => <Tag color={s === 'active' ? 'green' : 'default'}>{s === 'active' ? '启用' : '停用'}</Tag>,
+      render: (s: string) => <Tag color={STATUS_COLORS[s]}>{STATUS_LABELS[s] || s}</Tag>,
     },
     {
       title: '上次推送',
@@ -135,11 +130,7 @@ export default function ReportsPage() {
             onChange={(v) => { setStatus(v); setPage(1); }}
             allowClear
             style={{ width: 120 }}
-            options={[
-              { label: '全部', value: undefined },
-              { label: '启用', value: 'active' },
-              { label: '停用', value: 'inactive' },
-            ]}
+            options={ACTIVE_STATUS_FILTER_OPTIONS}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/reports/new')}>
             新建报告

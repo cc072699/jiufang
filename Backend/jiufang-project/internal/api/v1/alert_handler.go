@@ -30,12 +30,26 @@ func NewAlertHandler(alertService *service.AlertService, logger *zap.Logger) *Al
 }
 
 // parseRecipients parses a JSON string of recipients into a string slice.
+// Supports both []int64 (seed data format: [1001, 1002]) and []string (API format: ["1001", "1002"]).
 func parseRecipients(raw string) []string {
-	var recipients []string
-	if err := json.Unmarshal([]byte(raw), &recipients); err != nil {
-		recipients = []string{}
+	if raw == "" {
+		return []string{}
 	}
-	return recipients
+	// Try []string first (API-created format)
+	var strRecipients []string
+	if err := json.Unmarshal([]byte(raw), &strRecipients); err == nil {
+		return strRecipients
+	}
+	// Try []int64 (seed data format)
+	var intRecipients []int64
+	if err := json.Unmarshal([]byte(raw), &intRecipients); err == nil {
+		result := make([]string, len(intRecipients))
+		for i, id := range intRecipients {
+			result[i] = strconv.FormatInt(id, 10)
+		}
+		return result
+	}
+	return []string{}
 }
 
 // CreateAlert handles POST /api/v1/alerts - creates a new alert rule.

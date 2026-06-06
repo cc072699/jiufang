@@ -38,7 +38,7 @@ func NewQueryAgent(llmClient llm.LLMClientInterface, erpReader erp.ERPReaderInte
 	return &QueryAgent{
 		intentParser:    NewIntentParser(llmClient),
 		entityExtractor: NewEntityExtractor(llmClient),
-		sqlGenerator:    NewSQLGenerator(llmClient),
+		sqlGenerator:    NewSQLGenerator(llmClient, erpReader),
 		sqlValidator:    validator,
 		sqlExecutor:     NewSQLExecutor(erpReader, validator),
 		resultFormatter: NewResultFormatter(),

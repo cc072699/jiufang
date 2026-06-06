@@ -73,9 +73,15 @@ func (h *OperationLogHandler) ListOperationLogs(c *gin.Context) {
 			username, _ = h.logService.GetUsernameByUserID(ctx, *log.UserID)
 		}
 
+		userIDStr := ""
+		if log.UserID != nil && *log.UserID > 0 {
+			userIDStr = strconv.FormatInt(*log.UserID, 10)
+			username, _ = h.logService.GetUsernameByUserID(ctx, *log.UserID)
+		}
+
 		logResponses[i] = gin.H{
-			"id":               log.SnowflakeID,
-			"user_id":          log.UserID,
+			"id":               strconv.FormatInt(log.SnowflakeID, 10),
+			"user_id":          userIDStr,
 			"username":         username,
 			"operation_type":   log.OperationType,
 			"operation_object": log.OperationObject,
@@ -128,9 +134,14 @@ func (h *OperationLogHandler) GetOperationLog(c *gin.Context) {
 		username, _ = h.logService.GetUsernameByUserID(ctx, *log.UserID)
 	}
 
+	userIDStr := ""
+	if log.UserID != nil && *log.UserID > 0 {
+		userIDStr = strconv.FormatInt(*log.UserID, 10)
+	}
+
 	response.Success(c, gin.H{
-		"id":               log.SnowflakeID,
-		"user_id":          log.UserID,
+		"id":               strconv.FormatInt(log.SnowflakeID, 10),
+		"user_id":          userIDStr,
 		"username":         username,
 		"operation_type":   log.OperationType,
 		"operation_object": log.OperationObject,

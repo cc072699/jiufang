@@ -55,6 +55,7 @@ type PermissionRepositoryInterface interface {
 	Update(ctx context.Context, p *permission.Permission) error
 	Delete(ctx context.Context, id uint) error
 	DeleteByGroupID(ctx context.Context, groupID uint) error
+	ReplaceByGroupID(ctx context.Context, groupID uint, permissions []permission.Permission) error
 	List(ctx context.Context, offset, limit int, groupID uint, resourceType string) ([]permission.Permission, int64, error)
 }
 

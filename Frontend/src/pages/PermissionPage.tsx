@@ -1,24 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Typography, List, Card, Tag, Space, Button, Table, Checkbox, message, Empty, Input, Divider, Modal, Form } from 'antd';
+import { Typography, List, Card, Tag, Space, Button, Table, Checkbox, message, Empty, Input, Divider, Modal, Form, Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined, SaveOutlined, SearchOutlined, UserAddOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getGroupList, configurePermission, getGroupMembers, addGroupMember,
   removeGroupMember, getUserList, createGroup, updateGroup, deleteGroup, getPermissions,
+  getERPTableSchemas, type TableSchemaInfo,
 } from '../shared/api';
 import { confirmAction } from '../shared/ui';
 import type { GroupRecord, PermissionItem, GroupMemberItem } from '../shared/api/types';
+import { ROLE_LABELS } from '../shared/constants';
 
 const { Title, Text } = Typography;
 
-// Mock table schema for permission config (simulating ERP tables)
-const ERP_TABLES = [
-  { name: 'sales', label: '销售表', fields: ['id', 'product_name', 'amount', 'date', 'region'] },
-  { name: 'inventory', label: '库存表', fields: ['id', 'product_name', 'stock', 'warehouse', 'safety_stock'] },
-  { name: 'customers', label: '客户表', fields: ['id', 'name', 'contact', 'region', 'level'] },
-  { name: 'products', label: '产品表', fields: ['id', 'name', 'category', 'price', 'status'] },
-];
+interface ERPTable {
+  name: string;
+  label: string;
+  fields: string[];
+}
 
 export default function PermissionPage() {
   const queryClient = useQueryClient();
@@ -28,6 +28,8 @@ export default function PermissionPage() {
   const [filterConditions, setFilterConditions] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [erpTables, setErpTables] = useState<ERPTable[]>([]);
+  const [tablesLoading, setTablesLoading] = useState(true);
 
   // Add member modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -46,6 +48,24 @@ export default function PermissionPage() {
 
   // Group name search
   const [groupSearch, setGroupSearch] = useState('');
+
+  // Fetch ERP table schemas from backend
+  useEffect(() => {
+    setTablesLoading(true);
+    getERPTableSchemas()
+      .then((schemas: TableSchemaInfo[]) => {
+        const tables: ERPTable[] = schemas
+          .filter((s) => !s.name.includes('（')) // exclude backup tables
+          .map((s) => ({
+            name: s.name,
+            label: s.name,
+            fields: s.columns.map((c) => c.name),
+          }));
+        setErpTables(tables);
+      })
+      .catch(() => message.error('获取表结构失败'))
+      .finally(() => setTablesLoading(false));
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['groups'],
@@ -72,7 +92,7 @@ export default function PermissionPage() {
     const tPerms: Record<string, boolean> = {};
     const fPerms: Record<string, boolean> = {};
     const filters: Record<string, string> = {};
-    ERP_TABLES.forEach((t) => {
+    erpTables.forEach((t) => {
       tPerms[t.name] = false;
       filters[t.name] = '';
       t.fields.forEach((f) => { fPerms[`${t.name}.${f}`] = false; });
@@ -99,7 +119,7 @@ export default function PermissionPage() {
         const filters: Record<string, string> = {};
 
         // Init all to false
-        ERP_TABLES.forEach((t) => {
+        erpTables.forEach((t) => {
           tPerms[t.name] = false;
           filters[t.name] = '';
           t.fields.forEach((f) => { fPerms[`${t.name}.${f}`] = false; });
@@ -143,7 +163,7 @@ export default function PermissionPage() {
       onOk: async () => {
         setSaving(true);
         try {
-          const permissions: PermissionItem[] = ERP_TABLES
+          const permissions: PermissionItem[] = erpTables
             .filter((t) => tablePerms[t.name])
             .map((t) => ({
               table_name: t.name,
@@ -280,7 +300,7 @@ export default function PermissionPage() {
     },
   ];
 
-  const fieldRows = ERP_TABLES.flatMap((t) =>
+  const fieldRows = erpTables.flatMap((t) =>
     t.fields.map((f) => ({
       key: `${t.name}.${f}`,
       table: t.name,
@@ -393,8 +413,13 @@ export default function PermissionPage() {
             <div style={{ marginBottom: 24 }}>
               <Text strong>表级权限</Text>
               <div style={{ marginTop: 8 }}>
+                {tablesLoading ? (
+                  <Spin tip="加载表结构中..." />
+                ) : erpTables.length === 0 ? (
+                  <Text type="secondary">暂无可用表</Text>
+                ) : (
                 <Space wrap>
-                  {ERP_TABLES.map((t) => (
+                  {erpTables.map((t) => (
                     <Checkbox
                       key={t.name}
                       checked={tablePerms[t.name]}
@@ -410,6 +435,7 @@ export default function PermissionPage() {
                     </Checkbox>
                   ))}
                 </Space>
+                )}
               </div>
             </div>
 
@@ -430,7 +456,7 @@ export default function PermissionPage() {
             <div style={{ marginTop: 24 }}>
               <Text strong>数据级过滤条件</Text>
               <div style={{ marginTop: 8 }}>
-                {ERP_TABLES.filter((t) => tablePerms[t.name]).map((t) => (
+                {erpTables.filter((t) => tablePerms[t.name]).map((t) => (
                   <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <Tag style={{ minWidth: 72, textAlign: 'center' }}>{t.label}</Tag>
                     <Input
@@ -442,7 +468,7 @@ export default function PermissionPage() {
                     />
                   </div>
                 ))}
-                {ERP_TABLES.every((t) => !tablePerms[t.name]) && (
+                {erpTables.every((t) => !tablePerms[t.name]) && (
                   <Text type="secondary" style={{ fontSize: 12 }}>请先启用表级权限</Text>
                 )}
               </div>
@@ -486,7 +512,7 @@ export default function PermissionPage() {
                   >
                     <List.Item.Meta
                       title={member.username}
-                      description={`${member.email} · ${member.role === 'admin' ? '管理员' : member.role === 'manager' ? '部门经理' : '高管'}`}
+                      description={`${member.email} · ${ROLE_LABELS[member.role] || member.role}`}
                     />
                   </List.Item>
                 )}
@@ -533,7 +559,7 @@ export default function PermissionPage() {
             >
               <List.Item.Meta
                 title={user.username}
-                description={`${user.email} · ${user.role === 'admin' ? '管理员' : user.role === 'manager' ? '部门经理' : '高管'}`}
+                description={`${user.email} · ${ROLE_LABELS[user.role] || user.role}`}
               />
             </List.Item>
           )}

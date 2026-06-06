@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"jiufang/internal/infrastructure/erp"
 	"jiufang/internal/middleware"
 	"jiufang/internal/service"
 )
@@ -24,6 +25,7 @@ func RegisterRoutes(
 	operationLogService *service.OperationLogService,
 	queryService *service.QueryAppService,
 	userService *service.UserAppService,
+	erpReader erp.ERPReaderInterface,
 	logger *zap.Logger,
 ) {
 	profileHandler := NewProfileHandler(profileService)
@@ -37,8 +39,9 @@ func RegisterRoutes(
 	feedbackHandler := NewFeedbackHandler(feedbackService, logger)
 	alertHandler := NewAlertHandler(alertService, logger)
 	operationLogHandler := NewOperationLogHandler(operationLogService, logger)
-	queryHandler := NewQueryHandler(queryService, logger)
+	queryHandler := NewQueryHandler(queryService, permissionService, logger)
 	userHandler := NewUserHandler(userService, logger)
+	metadataHandler := NewMetadataHandler(erpReader, logger)
 
 	auth := r.Group("/auth")
 	{
@@ -51,6 +54,13 @@ func RegisterRoutes(
 	query.Use(authMiddleware.Authenticate()) // JWT authentication required
 	{
 		query.POST("", queryHandler.ExecuteQuery)
+	}
+
+	// ERP metadata routes (table list, schema)
+	metadata := r.Group("/metadata")
+	metadata.Use(authMiddleware.Authenticate())
+	{
+		metadata.GET("/tables", metadataHandler.GetTables)
 	}
 
 	// User management routes (Admin only)
