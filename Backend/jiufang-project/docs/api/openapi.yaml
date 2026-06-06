@@ -1,0 +1,3030 @@
+openapi: 3.0.3
+info:
+  title: 九方智能查询系统 API
+  description: |
+    九方智能查询系统是一个基于AI Agent的自然语言查询系统，支持用户通过自然语言查询ERP数据，
+    并提供定时报告、预警规则、数据导出等功能。
+    
+    ## 认证方式
+    - 使用JWT Bearer Token认证
+    - 登录接口获取JWT令牌
+    - 令牌有效期24小时
+    
+    ## 权限控制
+    - admin: 系统管理员，拥有所有权限
+    - manager: 管理层，拥有查询和导出权限
+    - executive: 执行层，拥有查询权限
+    
+    ## 响应格式
+    所有接口统一使用以下响应格式：
+    ```json
+    {
+      "code": 200,
+      "message": "success",
+      "data": {}
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: 九方技术团队
+    email: tech@jiufang.com
+
+servers:
+  - url: https://api.jiufang.com/v1
+    description: 生产环境
+  - url: https://api-dev.jiufang.com/v1
+    description: 开发环境
+  - url: http://localhost:8080/api/v1
+    description: 本地开发环境
+
+tags:
+  - name: Auth
+    description: 认证相关接口
+  - name: User
+    description: 用户管理接口（仅管理员）
+  - name: Group
+    description: 用户组管理接口（仅管理员）
+  - name: Query
+    description: 自然语言查询接口
+  - name: History
+    description: 查询历史记录接口
+  - name: Favorite
+    description: 收藏管理接口
+  - name: DialogFavorite
+    description: 对话收藏管理接口
+  - name: Export
+    description: 数据导出接口
+  - name: Report
+    description: 定时报告管理接口（仅管理员）
+  - name: Alert
+    description: 预警规则管理接口（仅管理员）
+  - name: Feedback
+    description: 反馈管理接口
+  - name: Log
+    description: 操作日志接口（仅管理员）
+  - name: Profile
+    description: 个人资料管理接口
+
+paths:
+  # ==================== 认证模块 ====================
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: 用户登录
+      description: 用户使用用户名和密码登录，返回JWT令牌
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: "admin"
+              password: "password123"
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                code: 200
+                message: "登录成功"
+                data:
+                  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_at: "2026-06-06T00:00:00Z"
+                  user:
+                    id: "1234567890123456789"
+                    username: "admin"
+                    role: "admin"
+                    groups: ["group1", "group2"]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: 用户名或密码错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 40101
+                message: "用户名或密码错误"
+        '403':
+          description: 用户已停用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 40301
+                message: "用户已停用"
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: 用户登出
+      description: 用户登出，清除JWT令牌
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                code: 200
+                message: "登出成功"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== 用户管理模块 ====================
+  /users:
+    post:
+      tags:
+        - User
+      summary: 创建用户
+      description: 创建新用户（仅系统管理员可操作）
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+                - email
+                - role
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 100
+                email:
+                  type: string
+                  format: email
+                  maxLength: 100
+                role:
+                  type: string
+                  enum: [admin, manager, executive]
+                groups:
+                  type: array
+                  items:
+                    type: string
+                status:
+                  type: integer
+                  enum: [0, 1]
+                  default: 1
+            example:
+              username: "newuser"
+              password: "password123"
+              email: "newuser@example.com"
+              role: "manager"
+              groups: ["1234567890123456789"]
+              status: 1
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: 用户名或邮箱已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags:
+        - User
+      summary: 查询用户列表
+      description: 分页查询用户列表（仅系统管理员可操作）
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: username
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [admin, manager, executive]
+        - name: status
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{user_id}:
+    get:
+      tags:
+        - User
+      summary: 查询用户详情
+      operationId: getUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - User
+      summary: 更新用户
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 100
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [admin, manager, executive]
+                groups:
+                  type: array
+                  items:
+                    type: string
+                status:
+                  type: integer
+                  enum: [0, 1]
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - User
+      summary: 删除用户
+      operationId: deleteUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== 查询模块 ====================
+  /query:
+    post:
+      tags:
+        - Query
+      summary: 自然语言查询
+      description: 执行自然语言查询，支持对话上下文和权限过滤
+      operationId: executeQuery
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - input
+              properties:
+                input:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                session_id:
+                  type: string
+                  pattern: '^\d{19}$'
+                execute_immediately:
+                  type: boolean
+                  default: true
+            example:
+              input: "查询上个月的销售额"
+              session_id: "1234567890123456789"
+              execute_immediately: true
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResultResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: 服务不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==================== 用户组管理模块 ====================
+  /groups:
+    post:
+      tags:
+        - Group
+      summary: 创建用户组
+      description: 创建新用户组（仅系统管理员可操作）
+      operationId: createGroup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    get:
+      tags:
+        - Group
+      summary: 查询用户组列表
+      description: 分页查询用户组列表（仅系统管理员可操作）
+      operationId: listGroups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: name
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /groups/{group_id}:
+    get:
+      tags:
+        - Group
+      summary: 查询用户组详情
+      description: 查询单个用户组详情（仅系统管理员可操作）
+      operationId: getGroup
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Group
+      summary: 更新用户组
+      description: 更新用户组信息（仅系统管理员可操作）
+      operationId: updateGroup
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Group
+      summary: 删除用户组
+      description: 删除用户组（仅系统管理员可操作）
+      operationId: deleteGroup
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /groups/{group_id}/permissions:
+    post:
+      tags:
+        - Group
+      summary: 配置用户组权限
+      description: 配置用户组权限（仅系统管理员可操作）
+      operationId: configurePermissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - permissions
+              properties:
+                permissions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - table_name
+                      - allowed_fields
+                    properties:
+                      table_name:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                      allowed_fields:
+                        type: string
+                        description: JSON数组格式
+                      filter_condition:
+                        type: string
+      responses:
+        '200':
+          description: 配置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    get:
+      tags:
+        - Group
+      summary: 查询用户组权限
+      description: 查询用户组权限配置（仅系统管理员可操作）
+      operationId: getPermissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /groups/{group_id}/members:
+    get:
+      tags:
+        - Group
+      summary: 查询用户组成员
+      description: 查询用户组成员列表（仅系统管理员可操作）
+      operationId: getGroupMembers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMemberListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Group
+      summary: 添加用户组成员
+      description: 添加用户组成员（仅系统管理员可操作）
+      operationId: addGroupMembers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_ids
+              properties:
+                user_ids:
+                  type: array
+                  items:
+                    type: string
+                    pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /groups/{group_id}/members/{user_id}:
+    delete:
+      tags:
+        - Group
+      summary: 删除用户组成员
+      description: 删除用户组成员（仅系统管理员可操作）
+      operationId: removeGroupMember
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== 历史记录模块 ====================
+  /history:
+    get:
+      tags:
+        - History
+      summary: 查询历史列表
+      description: 分页查询用户的查询历史记录
+      operationId: getHistoryList
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: start_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /history/{record_id}:
+    get:
+      tags:
+        - History
+      summary: 查询历史详情
+      description: 查询历史记录详情
+      operationId: getHistoryDetail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - History
+      summary: 删除查询历史
+      description: 删除历史记录
+      operationId: deleteHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== 收藏模块 ====================
+  /favorites:
+    post:
+      tags:
+        - Favorite
+      summary: 创建收藏
+      description: 创建查询记录收藏
+      operationId: createFavorite
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - record_id
+              properties:
+                record_id:
+                  type: string
+                  pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags:
+        - Favorite
+      summary: 查询收藏列表
+      description: 分页查询用户的收藏列表
+      operationId: getFavoriteList
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /favorites/{favorite_id}:
+    delete:
+      tags:
+        - Favorite
+      summary: 删除收藏
+      description: 删除收藏
+      operationId: deleteFavorite
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: favorite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== 对话收藏模块 ====================
+  /dialog-favorites:
+    post:
+      tags:
+        - DialogFavorite
+      summary: 创建对话收藏
+      description: 创建对话收藏
+      operationId: createDialogFavorite
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session_id
+              properties:
+                session_id:
+                  type: string
+                  pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DialogFavoriteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags:
+        - DialogFavorite
+      summary: 查询对话收藏列表
+      description: 分页查询用户的对话收藏列表
+      operationId: getDialogFavoriteList
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DialogFavoriteListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dialog-favorites/{favorite_id}:
+    delete:
+      tags:
+        - DialogFavorite
+      summary: 删除对话收藏
+      description: 删除对话收藏
+      operationId: deleteDialogFavorite
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: favorite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== 导出模块 ====================
+  /export:
+    post:
+      tags:
+        - Export
+      summary: 导出查询结果
+      description: 导出查询结果为Excel或CSV格式
+      operationId: exportQueryResult
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - record_id
+                - format
+              properties:
+                record_id:
+                  type: string
+                  pattern: '^\d{19}$'
+                format:
+                  type: string
+                  enum: [xlsx, csv]
+      responses:
+        '200':
+          description: 导出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /export/records:
+    get:
+      tags:
+        - Export
+      summary: 查询导出记录
+      description: 查询用户的导出记录列表
+      operationId: getExportRecords
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportRecordListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== 定时报告模块 ====================
+  /reports:
+    post:
+      tags:
+        - Report
+      summary: 创建定时报告
+      description: 创建定时报告（仅系统管理员可操作）
+      operationId: createReport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - query
+                - schedule
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                query:
+                  type: string
+                schedule:
+                  type: string
+                  description: Cron表达式
+                recipients:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    get:
+      tags:
+        - Report
+      summary: 查询定时报告列表
+      description: 分页查询定时报告列表（仅系统管理员可操作）
+      operationId: listReports
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /reports/{id}:
+    get:
+      tags:
+        - Report
+      summary: 查询定时报告详情
+      description: 查询定时报告详情（仅系统管理员可操作）
+      operationId: getReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Report
+      summary: 更新定时报告
+      description: 更新定时报告（仅系统管理员可操作）
+      operationId: updateReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                query:
+                  type: string
+                schedule:
+                  type: string
+                recipients:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Report
+      summary: 删除定时报告
+      description: 删除定时报告（仅系统管理员可操作）
+      operationId: deleteReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /push-records:
+    get:
+      tags:
+        - Report
+      summary: 查询推送记录
+      description: 查询推送记录列表（仅系统管理员可操作）
+      operationId: listPushRecords
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushRecordListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== 预警规则模块 ====================
+  /alerts:
+    post:
+      tags:
+        - Alert
+      summary: 创建预警规则
+      description: 创建预警规则（仅系统管理员可操作）
+      operationId: createAlert
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - condition
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                condition:
+                  type: string
+                  description: 预警条件SQL表达式
+                threshold:
+                  type: number
+                recipients:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    get:
+      tags:
+        - Alert
+      summary: 查询预警规则列表
+      description: 分页查询预警规则列表（仅系统管理员可操作）
+      operationId: listAlerts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /alerts/{id}:
+    get:
+      tags:
+        - Alert
+      summary: 查询预警规则详情
+      description: 查询预警规则详情（仅系统管理员可操作）
+      operationId: getAlert
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Alert
+      summary: 更新预警规则
+      description: 更新预警规则（仅系统管理员可操作）
+      operationId: updateAlert
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                condition:
+                  type: string
+                threshold:
+                  type: number
+                recipients:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Alert
+      summary: 删除预警规则
+      description: 删除预警规则（仅系统管理员可操作）
+      operationId: deleteAlert
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== 反馈模块 ====================
+  /feedbacks:
+    post:
+      tags:
+        - Feedback
+      summary: 创建反馈
+      description: 创建用户反馈
+      operationId: createFeedback
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+                type:
+                  type: string
+                  enum: [bug, suggestion, question]
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags:
+        - Feedback
+      summary: 查询反馈列表
+      description: 分页查询反馈列表（仅系统管理员可操作）
+      operationId: listFeedbacks
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /feedbacks/{id}:
+    get:
+      tags:
+        - Feedback
+      summary: 查询反馈详情
+      description: 查询反馈详情（仅系统管理员可操作）
+      operationId: getFeedback
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== 操作日志模块 ====================
+  /logs:
+    get:
+      tags:
+        - Log
+      summary: 查询操作日志列表
+      description: 分页查询操作日志列表（仅系统管理员可操作）
+      operationId: listOperationLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+        - name: operation_type
+          in: query
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationLogListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /logs/{id}:
+    get:
+      tags:
+        - Log
+      summary: 查询操作日志详情
+      description: 查询操作日志详情（仅系统管理员可操作）
+      operationId: getOperationLog
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{19}$'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationLogResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== 个人资料模块 ====================
+  /profile:
+    get:
+      tags:
+        - Profile
+      summary: 查询个人资料
+      description: 查询当前用户的个人资料
+      operationId: getProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /profile/avatar:
+    post:
+      tags:
+        - Profile
+      summary: 上传头像
+      description: 上传用户头像
+      operationId: uploadAvatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - avatar
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvatarResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /profile/password:
+    put:
+      tags:
+        - Profile
+      summary: 修改密码
+      description: 修改用户密码
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - old_password
+                - new_password
+              properties:
+                old_password:
+                  type: string
+                  minLength: 8
+                  maxLength: 100
+                new_password:
+                  type: string
+                  minLength: 8
+                  maxLength: 100
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: 错误码
+          example: 40001
+        message:
+          type: string
+          description: 错误信息
+          example: "参数错误"
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "admin"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          example: "password123"
+
+    LoginResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "登录成功"
+        data:
+          type: object
+          required:
+            - token
+            - expires_at
+            - user
+          properties:
+            token:
+              type: string
+              description: JWT令牌
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            expires_at:
+              type: string
+              format: date-time
+              description: 令牌过期时间
+              example: "2026-06-06T00:00:00Z"
+            user:
+              $ref: '#/components/schemas/UserInfo'
+
+    UserInfo:
+      type: object
+      required:
+        - id
+        - username
+        - role
+        - groups
+      properties:
+        id:
+          type: string
+          description: 用户ID（雪花ID）
+          pattern: '^\d{19}$'
+          example: "1234567890123456789"
+        username:
+          type: string
+          example: "admin"
+        role:
+          type: string
+          enum: [admin, manager, executive]
+          example: "admin"
+        groups:
+          type: array
+          items:
+            type: string
+          description: 用户组ID列表
+          example: ["1234567890123456789"]
+
+    UserResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - username
+            - email
+            - role
+            - groups
+            - status
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            username:
+              type: string
+            email:
+              type: string
+              format: email
+            role:
+              type: string
+              enum: [admin, manager, executive]
+            groups:
+              type: array
+              items:
+                type: string
+            status:
+              type: integer
+              enum: [0, 1]
+            created_at:
+              type: string
+              format: date-time
+
+    UserListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - users
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            users:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  username:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+                  role:
+                    type: string
+                    enum: [admin, manager, executive]
+                  status:
+                    type: integer
+                    enum: [0, 1]
+                  created_at:
+                    type: string
+                    format: date-time
+
+    QueryResultResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "查询成功"
+        data:
+          type: object
+          required:
+            - session_id
+            - understanding
+            - result_type
+            - can_export
+          properties:
+            session_id:
+              type: string
+              pattern: '^\d{19}$'
+            understanding:
+              type: string
+            result_type:
+              type: string
+              enum: [table, chart, empty]
+            columns:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  type:
+                    type: string
+                    enum: [string, number, date]
+            rows:
+              type: array
+              items:
+                type: object
+            chart_config:
+              type: object
+            suggested_questions:
+              type: array
+              items:
+                type: string
+            can_export:
+              type: boolean
+
+    GroupResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - name
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            name:
+              type: string
+            description:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+
+    GroupListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - groups
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            groups:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+
+    PermissionListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - permissions
+          properties:
+            permissions:
+              type: array
+              items:
+                type: object
+                properties:
+                  table_name:
+                    type: string
+                  allowed_fields:
+                    type: string
+                  filter_condition:
+                    type: string
+
+    GroupMemberListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - members
+          properties:
+            members:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  username:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+
+    HistoryListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - records
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            records:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  query_text:
+                    type: string
+                  result_type:
+                    type: string
+                    enum: [table, chart, empty]
+                  created_at:
+                    type: string
+                    format: date-time
+
+    HistoryDetailResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - query_text
+            - understanding
+            - result_type
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            query_text:
+              type: string
+            understanding:
+              type: string
+            result_type:
+              type: string
+              enum: [table, chart, empty]
+            columns:
+              type: array
+              items:
+                type: object
+            rows:
+              type: array
+              items:
+                type: object
+            created_at:
+              type: string
+              format: date-time
+
+    FavoriteResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - record_id
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            record_id:
+              type: string
+              pattern: '^\d{19}$'
+            created_at:
+              type: string
+              format: date-time
+
+    FavoriteListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - favorites
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            favorites:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  record_id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  query_text:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+
+    DialogFavoriteResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - session_id
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            session_id:
+              type: string
+              pattern: '^\d{19}$'
+            created_at:
+              type: string
+              format: date-time
+
+    DialogFavoriteListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - favorites
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            favorites:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  session_id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  created_at:
+                    type: string
+                    format: date-time
+
+    ExportResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - file_url
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            file_url:
+              type: string
+              format: uri
+            created_at:
+              type: string
+              format: date-time
+
+    ExportRecordListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - records
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            records:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  file_url:
+                    type: string
+                    format: uri
+                  format:
+                    type: string
+                    enum: [xlsx, csv]
+                  created_at:
+                    type: string
+                    format: date-time
+
+    ReportResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - name
+            - query
+            - schedule
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            name:
+              type: string
+            query:
+              type: string
+            schedule:
+              type: string
+            recipients:
+              type: array
+              items:
+                type: string
+                format: email
+            created_at:
+              type: string
+              format: date-time
+
+    ReportListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - reports
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            reports:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  name:
+                    type: string
+                  schedule:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+
+    PushRecordListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - records
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            records:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  report_id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  status:
+                    type: string
+                    enum: [success, failed]
+                  created_at:
+                    type: string
+                    format: date-time
+
+    AlertResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - name
+            - condition
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            name:
+              type: string
+            condition:
+              type: string
+            threshold:
+              type: number
+            recipients:
+              type: array
+              items:
+                type: string
+                format: email
+            created_at:
+              type: string
+              format: date-time
+
+    AlertListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - alerts
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            alerts:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  name:
+                    type: string
+                  condition:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+
+    FeedbackResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - content
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            content:
+              type: string
+            type:
+              type: string
+              enum: [bug, suggestion, question]
+            user_id:
+              type: string
+              pattern: '^\d{19}$'
+            created_at:
+              type: string
+              format: date-time
+
+    FeedbackListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - feedbacks
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            feedbacks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  content:
+                    type: string
+                  type:
+                    type: string
+                    enum: [bug, suggestion, question]
+                  user_id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  created_at:
+                    type: string
+                    format: date-time
+
+    OperationLogListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - total
+            - page
+            - page_size
+            - logs
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            logs:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  user_id:
+                    type: string
+                    pattern: '^\d{19}$'
+                  operation_type:
+                    type: string
+                  operation_detail:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+
+    OperationLogResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - user_id
+            - operation_type
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            user_id:
+              type: string
+              pattern: '^\d{19}$'
+            operation_type:
+              type: string
+            operation_detail:
+              type: string
+            ip_address:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+
+    ProfileResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - id
+            - username
+            - email
+            - role
+            - created_at
+          properties:
+            id:
+              type: string
+              pattern: '^\d{19}$'
+            username:
+              type: string
+            email:
+              type: string
+              format: email
+            role:
+              type: string
+              enum: [admin, manager, executive]
+            avatar_url:
+              type: string
+              format: uri
+            created_at:
+              type: string
+              format: date-time
+
+    AvatarResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "success"
+        data:
+          type: object
+          required:
+            - avatar_url
+          properties:
+            avatar_url:
+              type: string
+              format: uri
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 40001
+            message: "参数错误"
+
+    Unauthorized:
+      description: 未授权
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 40101
+            message: "未授权访问"
+
+    Forbidden:
+      description: 权限不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 40301
+            message: "权限不足"
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 40401
+            message: "资源不存在"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT认证

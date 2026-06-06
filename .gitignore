@@ -1,0 +1,42 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Frontend
+Frontend/node_modules
+Frontend/dist
+Frontend/dist-ssr
+Frontend/*.local
+
+# Backend
+Backend/jiufang-project/bin/
+Backend/jiufang-project/dist/
+Backend/jiufang-project/vendor/
+Backend/jiufang-project/*.test
+Backend/jiufang-project/*.out
+Backend/jiufang-project/coverage.out
+Backend/jiufang-project/server
+
+# Secrets - NEVER commit real config with passwords
+Backend/jiufang-project/config.yaml
+.env
+.env.local
+.env.*.local
+
+# Temp
+tmp/
+temp/
+*.tar.gz
+*.zip

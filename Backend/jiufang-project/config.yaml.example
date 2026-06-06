@@ -1,0 +1,65 @@
+server:
+  port: 8080
+  mode: release
+
+cors:
+  allow_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: YOUR_DB_PASSWORD
+  dbname: jiufang
+  sslmode: disable
+
+jwt:
+  secret: YOUR_JWT_SECRET
+  expire_time: 24h
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  api_key: "YOUR_DEEPSEEK_API_KEY"
+  endpoint: "https://api.deepseek.com/v1"
+  temperature: 0.7
+  max_tokens: 4096
+  timeout: 30
+  retry_count: 3
+  fallback_model: deepseek-chat
+
+erp:
+  driver: mysql
+  host: YOUR_ERP_HOST
+  port: 3306
+  database: YOUR_ERP_DATABASE
+  username: YOUR_ERP_USERNAME
+  password: "YOUR_ERP_PASSWORD"
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime: 30
+  query_timeout: 30
+  max_result_rows: 10000
+
+query_service:
+  max_history: 10
+  query_timeout: 30
+
+redis:
+  address: "localhost:6379"
+  password: ""
+  db: 0
+  pool_size: 20
+  min_idle_conns: 5
+  max_retries: 3
+  dial_timeout: 5
+  read_timeout: 3
+  write_timeout: 3
+
+dialog:
+  context_ttl: 30
+  max_turns: 5
+  enable_anaphora: true
+  enable_merge: true

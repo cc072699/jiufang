@@ -1,0 +1,65 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Config files with secrets
+configs/config.local.yaml
+configs/config.*.local.yaml
+
+# Logs
+logs/
+*.log
+
+# Temp files
+tmp/
+temp/
+
+# Build artifacts
+*.tar.gz
+*.zip
+
+# Docker
+.docker/
+
+# Secrets baseline (update with: detect-secrets scan > .secrets.baseline)
+# .secrets.baseline should be committed
+
+# Test results
+test-results/
+coverage/

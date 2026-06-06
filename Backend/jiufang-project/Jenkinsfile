@@ -1,0 +1,116 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME = 'gin-app'
+        VERSION = "${env.BUILD_NUMBER}"
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'git submodule update --init --recursive'
+            }
+        }
+
+        stage('Setup') {
+            steps {
+                sh '''
+                    go version
+                    go mod download
+                    go mod verify
+                '''
+            }
+        }
+
+        stage('Format Check') {
+            steps {
+                sh '''
+                    if [ -n "$(gofmt -d .)" ]; then
+                        echo "Code is not formatted. Please run 'gofmt -w .'"
+                        gofmt -d .
+                        exit 1
+                    fi
+                '''
+            }
+        }
+
+        stage('Imports Check') {
+            steps {
+                sh '''
+                    if [ -n "$(goimports -d .)" ]; then
+                        echo "Imports are not sorted. Please run 'goimports -w .'"
+                        goimports -d .
+                        exit 1
+                    fi
+                '''
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                sh 'golangci-lint run --timeout=5m'
+            }
+        }
+
+        stage('Vet') {
+            steps {
+                sh 'go vet ./...'
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                sh '''
+                    go install github.com/securego/gosec/v2/cmd/gosec@latest
+                    gosec ./...
+                '''
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh '''
+                    go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+                    go tool cover -func=coverage.out
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh '''
+                    mkdir -p bin
+                    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${VERSION}" -o bin/server ./cmd/server
+                    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${VERSION}" -o bin/server.exe ./cmd/server
+                '''
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'bin/*', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "Build succeeded! Version: ${VERSION}"
+            echo "Artifacts: bin/server (Linux), bin/server.exe (Windows)"
+        }
+        failure {
+            echo 'Build failed!'
+        }
+    }
+}
