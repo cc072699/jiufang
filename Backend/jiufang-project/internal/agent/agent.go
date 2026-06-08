@@ -163,8 +163,8 @@ func (a *QueryAgent) ExecuteWithPermission(ctx context.Context, input string, qu
 		return nil, err
 	}
 
-	// Generate SQL with permission filter
-	sql, err := a.sqlGenerator.GenerateWithPermissionFilter(ctx, intent, entities, queryContext.PermissionFilter)
+	// Generate SQL (permission filter will be applied by executor)
+	sql, err := a.sqlGenerator.Generate(ctx, intent, entities)
 	if err != nil {
 		return nil, err
 	}

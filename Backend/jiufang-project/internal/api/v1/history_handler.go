@@ -30,6 +30,7 @@ func NewHistoryHandler(historyService *service.HistoryAppService, logger *zap.Lo
 // HistoryItem represents a single history item in the list response (API-013).
 type HistoryItem struct {
 	ID            string `json:"id"`
+	SessionID     string `json:"session_id"`
 	Input         string `json:"input"`
 	Sql           string `json:"sql"`
 	Status        string `json:"status"`
@@ -72,6 +73,7 @@ func (h *HistoryHandler) GetHistoryList(c *gin.Context) {
 	for i, r := range records {
 		items[i] = HistoryItem{
 			ID:            strconv.FormatInt(r.SnowflakeID, 10),
+			SessionID:     strconv.FormatInt(r.SessionID, 10),
 			Input:         r.Input,
 			Sql:           r.SQL,
 			Status:        string(r.Status),
@@ -142,6 +144,51 @@ func (h *HistoryHandler) GetHistoryDetail(c *gin.Context) {
 		ResultData:    record.ResultData,
 		CreatedAt:     record.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	})
+}
+
+// GetHistoryBySessionID handles GET /api/v1/history/session/:session_id - get all records for a session.
+func (h *HistoryHandler) GetHistoryBySessionID(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	sessionID := c.Param("session_id")
+	if sessionID == "" {
+		response.Error(c, http.StatusBadRequest, "session_id is required")
+		return
+	}
+
+	records, err := h.historyService.GetHistoryBySessionID(ctx, userID, sessionID)
+	if err != nil {
+		h.logger.Error("Failed to get history by session",
+			zap.Error(err),
+			zap.String("session_id", sessionID),
+		)
+		response.Error(c, http.StatusNotFound, "session not found")
+		return
+	}
+
+	items := make([]HistoryDetailItem, len(records))
+	for i, r := range records {
+		items[i] = HistoryDetailItem{
+			ID:            strconv.FormatInt(r.SnowflakeID, 10),
+			SessionID:     strconv.FormatInt(r.SessionID, 10),
+			Input:         r.Input,
+			Sql:           r.SQL,
+			Status:        string(r.Status),
+			ErrorMessage:  r.ErrorMessage,
+			ResultCount:   r.ResultCount,
+			ExecutionTime: r.ExecutionTime,
+			ResultData:    r.ResultData,
+			CreatedAt:     r.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		}
+	}
+
+	response.Success(c, items)
 }
 
 // DeleteHistory handles DELETE /api/v1/history/:record_id - delete history.

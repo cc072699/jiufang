@@ -104,6 +104,7 @@ func RegisterRoutes(
 	history.Use(authMiddleware.Authenticate()) // JWT authentication required
 	{
 		history.GET("", historyHandler.GetHistoryList)
+		history.GET("/session/:session_id", historyHandler.GetHistoryBySessionID)
 		history.GET("/:record_id", historyHandler.GetHistoryDetail)
 		history.DELETE("/:record_id", historyHandler.DeleteHistory)
 	}

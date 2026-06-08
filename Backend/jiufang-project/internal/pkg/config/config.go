@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"net"
 	"time"
 
 	"github.com/spf13/viper"
@@ -162,7 +164,7 @@ func Load() (*Config, error) {
 			Mode: viper.GetString("server.mode"),
 		},
 		CORS: CORSConfig{
-			AllowOrigins: viper.GetStringSlice("cors.allow_origins"),
+			AllowOrigins: appendLocalIPIfNeeded(viper.GetStringSlice("cors.allow_origins")),
 		},
 		Database: DatabaseConfig{
 			Host:     viper.GetString("database.host"),
@@ -226,4 +228,30 @@ func Load() (*Config, error) {
 
 func (c *JWTConfig) GetExpireTime() time.Time {
 	return time.Now().Add(c.ExpireTime)
+}
+
+func appendLocalIPIfNeeded(origins []string) []string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return origins
+	}
+	ports := []string{"5173", "3000"}
+	existing := make(map[string]bool, len(origins))
+	for _, o := range origins {
+		existing[o] = true
+	}
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok || ipNet.IP.IsLoopback() || ipNet.IP.To4() == nil {
+			continue
+		}
+		ip := ipNet.IP.String()
+		for _, port := range ports {
+			origin := fmt.Sprintf("http://%s:%s", ip, port)
+			if !existing[origin] {
+				origins = append(origins, origin)
+			}
+		}
+	}
+	return origins
 }

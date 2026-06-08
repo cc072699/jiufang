@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -49,6 +50,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 		response.InternalError(c, "login failed")
 		return
+	}
+
+	// Set user_id in context for operation log middleware
+	if uid, err := strconv.ParseInt(loginResp.User.ID, 10, 64); err == nil {
+		c.Set("user_id", uid)
 	}
 
 	response.Success(c, gin.H{

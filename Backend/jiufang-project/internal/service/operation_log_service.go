@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"jiufang/internal/model/audit"
 	"jiufang/internal/pkg/id"
@@ -33,7 +34,7 @@ func NewOperationLogService(
 }
 
 // RecordOperation records an operation log entry.
-func (s *OperationLogService) RecordOperation(ctx context.Context, userID int64, opType audit.OperationType, object string, detail string, result audit.OperationResult, ip string) {
+func (s *OperationLogService) RecordOperation(ctx context.Context, userID int64, opType audit.OperationType, object string, detail string, result audit.OperationResult, ip string, reqTime time.Time) {
 	snowflakeID, err := id.Generate()
 	if err != nil {
 		s.logger.Warn("failed to generate snowflake ID for operation log", zap.Error(err))
@@ -53,6 +54,7 @@ func (s *OperationLogService) RecordOperation(ctx context.Context, userID int64,
 		OperationDetail: detail,
 		OperationResult: result,
 		IPAddress:       ip,
+		CreatedAt:       reqTime,
 	}
 
 	if err := s.logRepo.Create(ctx, log); err != nil {

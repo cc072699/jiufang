@@ -309,20 +309,45 @@ func mapDocumentTypeToTable(docType string) string {
 
 // addPermissionFilter adds permission filter to SQL.
 func addPermissionFilter(sql string, permissionFilter string) string {
-	// Check if SQL already has WHERE clause
-	if strings.Contains(strings.ToUpper(sql), "WHERE") {
-		// Add to existing WHERE clause
-		return strings.Replace(sql, "WHERE", "WHERE "+permissionFilter+" AND", 1)
+	// Strip trailing semicolons and whitespace
+	sql = strings.TrimRight(sql, "; \t\n\r")
+	upper := strings.ToUpper(sql)
+
+	// Find top-level WHERE (skip subqueries by tracking parenthesis depth)
+	whereIdx := -1
+	depth := 0
+	for i := 0; i < len(upper)-5; i++ {
+		switch upper[i] {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		}
+		if depth == 0 && upper[i:i+5] == "WHERE" {
+			// Make sure it's a word boundary (not part of another word)
+			if (i == 0 || upper[i-1] == ' ' || upper[i-1] == ')') &&
+				(i+5 >= len(upper) || upper[i+5] == ' ' || upper[i+5] == '(') {
+				whereIdx = i
+				break
+			}
+		}
 	}
-	// Add new WHERE clause
-	// Find position before ORDER BY, GROUP BY, LIMIT
+
+	if whereIdx >= 0 {
+		return sql[:whereIdx] + "WHERE " + permissionFilter + " AND " + sql[whereIdx+6:]
+	}
+
+	// No WHERE found — insert before ORDER BY / GROUP BY / LIMIT
 	insertPos := len(sql)
-	for _, keyword := range []string{"ORDER BY", "GROUP BY", "LIMIT"} {
-		if idx := strings.Index(strings.ToUpper(sql), keyword); idx > 0 && idx < insertPos {
+	for _, kw := range []string{"ORDER BY", "GROUP BY", "LIMIT"} {
+		idx := strings.Index(upper, kw)
+		if idx > 0 && idx < insertPos {
 			insertPos = idx
 		}
 	}
-	return sql[:insertPos] + " WHERE " + permissionFilter + " " + sql[insertPos:]
+	return strings.TrimRight(sql[:insertPos], " ") + " WHERE " + permissionFilter + " " + sql[insertPos:]
 }
 
 // buildSQLPrompt builds the prompt for SQL generation.

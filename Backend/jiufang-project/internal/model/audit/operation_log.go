@@ -31,6 +31,16 @@ const (
 	OperationTypeUpdateAlert      OperationType = "update_alert"
 	OperationTypeDeleteAlert      OperationType = "delete_alert"
 	OperationTypeExport           OperationType = "export"
+	OperationTypeCreateFavorite   OperationType = "create_favorite"
+	OperationTypeDeleteFavorite   OperationType = "delete_favorite"
+	OperationTypeDeleteHistory    OperationType = "delete_history"
+	OperationTypeChangePassword   OperationType = "change_password"
+	OperationTypeCreateGroup      OperationType = "create_group"
+	OperationTypeUpdateGroup      OperationType = "update_group"
+	OperationTypeDeleteGroup      OperationType = "delete_group"
+	OperationTypeAddMember        OperationType = "add_member"
+	OperationTypeRemoveMember     OperationType = "remove_member"
+	OperationTypeCreateFeedback   OperationType = "create_feedback"
 )
 
 // OperationLog represents an operation log entry.

@@ -3,7 +3,7 @@ import { Input, Button, Card, Typography, Space, Alert, Skeleton, List, Tooltip,
 import { SendOutlined, ThunderboltOutlined, PlusOutlined, MessageOutlined, ExportOutlined, SearchOutlined, StarOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { queryNaturalLanguage, submitFeedback, createFavorite, getHistoryList, getHistoryDetail } from '../shared/api';
+import { queryNaturalLanguage, submitFeedback, createFavorite, getHistoryList, getHistoryBySessionID } from '../shared/api';
 import { DataTable, ChartRenderer, EmptyState } from '../shared/ui';
 import type { QueryResultData } from '../shared/api/types';
 
@@ -47,12 +47,19 @@ export default function QueryPage() {
     queryFn: () => getHistoryList({ page: 1, page_size: 50 }),
   });
 
-  // Merge API history with in-memory sessions, dedup by id
-  const apiSessions: Session[] = (historyData?.records ?? []).map((r) => ({
-    id: r.id,
-    title: r.input.slice(0, 20),
-    createdAt: new Date(r.created_at).getTime(),
-  }));
+  // Merge API history with in-memory sessions, grouped by session_id
+  const sessionMap = new Map<string, Session>();
+  for (const r of historyData?.records ?? []) {
+    const existing = sessionMap.get(r.session_id);
+    if (!existing || new Date(r.created_at).getTime() < existing.createdAt) {
+      sessionMap.set(r.session_id, {
+        id: r.session_id,
+        title: r.input.slice(0, 20),
+        createdAt: new Date(r.created_at).getTime(),
+      });
+    }
+  }
+  const apiSessions = Array.from(sessionMap.values());
   const mergedSessions = [...sessions];
   for (const s of apiSessions) {
     if (!mergedSessions.some((m) => m.id === s.id)) {
@@ -126,24 +133,28 @@ export default function QueryPage() {
   const handleSelectSession = async (s: Session) => {
     if (s.id === sessionId) return;
     try {
-      const detail = await getHistoryDetail(s.id);
-      let parsedResult: QueryResultData | undefined;
-      if (detail.result_data) {
-        try {
-          parsedResult = JSON.parse(detail.result_data) as QueryResultData;
-          if (!parsedResult.session_id) parsedResult.session_id = detail.session_id;
-        } catch { /* result_data 解析失败，仅展示文本 */ }
+      const records = await getHistoryBySessionID(s.id);
+      const msgs: Message[] = [];
+      for (const r of records) {
+        msgs.push({ role: 'user', content: r.input });
+        let parsedResult: QueryResultData | undefined;
+        if (r.result_data) {
+          try {
+            parsedResult = JSON.parse(r.result_data) as QueryResultData;
+            if (!parsedResult.session_id) parsedResult.session_id = r.session_id;
+          } catch { /* ignore parse failure */ }
+        }
+        msgs.push({
+          role: 'assistant',
+          content: parsedResult?.understanding ?? r.input,
+          result: parsedResult,
+          error: r.status === 'failed' ? (r.error_message || '查询失败') : undefined,
+        });
       }
-      const assistantMsg: Message = {
-        role: 'assistant',
-        content: parsedResult?.understanding ?? detail.input,
-        result: parsedResult,
-        error: detail.status === 'failed' ? (detail.error_message || '查询失败') : undefined,
-      };
-      setMessages([{ role: 'user', content: detail.input }, assistantMsg]);
-      setSessionId(detail.session_id);
+      setMessages(msgs);
+      setSessionId(s.id);
     } catch {
-      setMessages([{ role: 'user', content: s.title }]);
+      setMessages([]);
       setSessionId(s.id);
     }
   };
@@ -208,10 +219,17 @@ export default function QueryPage() {
   const autoSubmitDone = useRef(false);
   useEffect(() => {
     if (autoSubmitDone.current) return;
-    const state = location.state as { input?: string; sessionId?: string } | null;
-    if (state?.input) {
+    const state = location.state as { input?: string; sessionId?: string; loadSession?: boolean } | null;
+    if (!state) return;
+
+    if (state.loadSession && state.sessionId) {
+      // Load full conversation from history (追问 flow)
       autoSubmitDone.current = true;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      handleSelectSession({ id: state.sessionId, title: '', createdAt: 0 });
+      window.history.replaceState({}, '');
+    } else if (state.input) {
+      // Auto-submit a query (favorites flow)
+      autoSubmitDone.current = true;
       handleSend(state.input, state.sessionId);
       window.history.replaceState({}, '');
     }

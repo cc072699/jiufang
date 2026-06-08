@@ -69,10 +69,6 @@ func (h *OperationLogHandler) ListOperationLogs(c *gin.Context) {
 	logResponses := make([]gin.H, len(logs))
 	for i, log := range logs {
 		username := ""
-		if log.UserID != nil && *log.UserID > 0 {
-			username, _ = h.logService.GetUsernameByUserID(ctx, *log.UserID)
-		}
-
 		userIDStr := ""
 		if log.UserID != nil && *log.UserID > 0 {
 			userIDStr = strconv.FormatInt(*log.UserID, 10)

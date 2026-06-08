@@ -63,21 +63,15 @@ func (s *AuthAppService) Login(ctx context.Context, req LoginRequest) (*LoginRes
 		return nil, pkgerrors.ErrInvalidCredentials
 	}
 
-	members, err := s.groupRepo.GetMembers(ctx, user.ID)
+	groups, err := s.groupRepo.GetGroupsByUserID(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Deduplicate group IDs using a set
+	// Deduplicate group snowflake IDs
 	groupIDSet := make(map[int64]bool)
-	for _, member := range members {
-		group, err := s.groupRepo.GetByID(ctx, member.GroupID)
-		if err != nil {
-			continue
-		}
-		if group != nil {
-			groupIDSet[group.SnowflakeID] = true
-		}
+	for _, group := range groups {
+		groupIDSet[group.SnowflakeID] = true
 	}
 
 	groupIDs := make([]int64, 0, len(groupIDSet))

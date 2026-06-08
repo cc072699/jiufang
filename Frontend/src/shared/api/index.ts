@@ -154,6 +154,12 @@ export async function getHistoryDetail(recordId: string) {
   return getData(res);
 }
 
+// 按 session_id 获取完整对话历史
+export async function getHistoryBySessionID(sessionId: string) {
+  const res = await apiClient.get<ApiResponse<HistoryDetailData[]>>(`/history/session/${sessionId}`);
+  return getData(res);
+}
+
 // API-015: 删除查询历史
 export async function deleteHistory(recordId: string) {
   await apiClient.delete<ApiResponse<null>>(`/history/${recordId}`);

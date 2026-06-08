@@ -67,6 +67,32 @@ func (s *HistoryAppService) GetHistoryDetail(ctx context.Context, userID int64, 
 	return record, nil
 }
 
+// GetHistoryBySessionID retrieves all query records for a specific session.
+func (s *HistoryAppService) GetHistoryBySessionID(ctx context.Context, userID int64, sessionID string) ([]query.QueryRecord, error) {
+	// Parse session ID
+	sessionIDInt, err := strconv.ParseInt(sessionID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid session id format: %w", err)
+	}
+
+	// Get all records for this session
+	records, err := s.queryRepo.GetQueryRecordsBySessionID(ctx, sessionIDInt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get history by session id: %w", err)
+	}
+
+	if len(records) == 0 {
+		return nil, fmt.Errorf("session not found")
+	}
+
+	// Verify ownership — all records in a session belong to the same user
+	if records[0].UserID != userID {
+		return nil, fmt.Errorf("session not owned by user")
+	}
+
+	return records, nil
+}
+
 // DeleteHistory deletes a query record.
 func (s *HistoryAppService) DeleteHistory(ctx context.Context, userID int64, recordID string) error {
 	// Parse snowflake ID

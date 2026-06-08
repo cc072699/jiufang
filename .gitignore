@@ -40,3 +40,9 @@ tmp/
 temp/
 *.tar.gz
 *.zip
+
+# Redis
+dump.rdb
+
+# Uploads
+Backend/jiufang-project/uploads/

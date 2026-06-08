@@ -2,6 +2,7 @@
 package v1
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -88,6 +89,13 @@ func (h *QueryHandler) ExecuteQuery(c *gin.Context) {
 	groupIDs := middleware.GetGroups(c)
 	queryContext := h.buildQueryContext(c, sessionID, uint(userID), groupIDs)
 
+	// Non-admin users must have permissions configured
+	role := middleware.GetRole(c)
+	if role != "admin" && (queryContext == nil || len(queryContext.AllowedTables) == 0) {
+		response.Error(c, http.StatusForbidden, "用户未配置查询权限，请联系管理员")
+		return
+	}
+
 	// Execute query with or without permission filtering
 	var result *agentmodel.QueryResult
 	var err error
@@ -142,6 +150,8 @@ func (h *QueryHandler) buildQueryContext(c *gin.Context, sessionID string, userI
 	reqCtx := c.Request.Context()
 	var allowedTables []string
 	var allowedFields = make(map[string][]string)
+	var tableFilters = make(map[string]string)
+	var unrestrictedSet = make(map[string]bool) // tables seen as "*" or ""
 
 	for _, groupID := range groupIDs {
 		perms, err := h.permissionService.GetPermissionsByGroup(reqCtx, groupID)
@@ -152,12 +162,19 @@ func (h *QueryHandler) buildQueryContext(c *gin.Context, sessionID string, userI
 		for _, p := range perms {
 			if p.TableName != "" {
 				allowedTables = append(allowedTables, p.TableName)
-				if p.AllowedFields != "" && p.AllowedFields != "*" {
-					fields := strings.Split(p.AllowedFields, ",")
-					for i := range fields {
-						fields[i] = strings.TrimSpace(fields[i])
+				tblKey := strings.ToLower(p.TableName)
+				if p.AllowedFields == "*" || p.AllowedFields == "" {
+					unrestrictedSet[tblKey] = true
+				} else {
+					fields := parseAllowedFields(p.AllowedFields)
+					allowedFields[tblKey] = append(allowedFields[tblKey], fields...)
+				}
+				if p.FilterCondition != "" {
+					if existing, ok := tableFilters[tblKey]; ok {
+						tableFilters[tblKey] = existing + " AND (" + p.FilterCondition + ")"
+					} else {
+						tableFilters[tblKey] = "(" + p.FilterCondition + ")"
 					}
-					allowedFields[p.TableName] = append(allowedFields[p.TableName], fields...)
 				}
 			}
 		}
@@ -167,13 +184,72 @@ func (h *QueryHandler) buildQueryContext(c *gin.Context, sessionID string, userI
 		return nil
 	}
 
+	// If any group specified restricted fields for a table, it stays restricted
+	// (specific field restrictions override wildcard access from other groups)
+	unrestrictedTables := make(map[string]bool)
+	for tbl := range unrestrictedSet {
+		if _, hasRestrictions := allowedFields[tbl]; !hasRestrictions {
+			unrestrictedTables[tbl] = true
+		}
+	}
+
+	// Deduplicate allowed tables
+	seen := make(map[string]bool)
+	var uniqueTables []string
+	for _, t := range allowedTables {
+		key := strings.ToLower(t)
+		if !seen[key] {
+			seen[key] = true
+			uniqueTables = append(uniqueTables, t)
+		}
+	}
+
 	return &agentmodel.QueryContext{
-		UserID:        userID,
-		SessionID:     sessionID,
-		AllowedTables: allowedTables,
-		AllowedFields: allowedFields,
+		UserID:             userID,
+		SessionID:          sessionID,
+		AllowedTables:      uniqueTables,
+		AllowedFields:      allowedFields,
+		TableFilters:       tableFilters,
+		UnrestrictedTables: unrestrictedTables,
 	}
 }
+
+// parseAllowedFields parses allowed fields from either JSON array or comma-separated string format.
+func parseAllowedFields(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+
+	// Try JSON array format first: ["field1","field2"]
+	if strings.HasPrefix(raw, "[") {
+		var arr []string
+		if err := json.Unmarshal([]byte(raw), &arr); err == nil {
+			var result []string
+			for _, f := range arr {
+				f = strings.TrimSpace(f)
+				if f != "" {
+					result = append(result, f)
+				}
+			}
+			return result
+		}
+	}
+
+	// Fallback: comma-separated format: field1,field2
+	parts := strings.Split(raw, ",")
+	var result []string
+	for _, f := range parts {
+		f = strings.TrimSpace(f)
+		// Strip surrounding quotes if present
+		f = strings.Trim(f, "\"'")
+		if f != "" {
+			result = append(result, f)
+		}
+	}
+	return result
+}
+
 func buildColumnDefinitions(data []map[string]interface{}) []query.ColumnDefinition {
 	if len(data) == 0 {
 		return []query.ColumnDefinition{}

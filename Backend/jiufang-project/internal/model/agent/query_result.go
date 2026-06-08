@@ -128,11 +128,17 @@ type QueryContext struct {
 	// PermissionFilter is the SQL filter condition based on user permissions
 	PermissionFilter string `json:"permission_filter"`
 
+	// TableFilters stores per-table filter conditions (table_name -> WHERE condition)
+	TableFilters map[string]string `json:"table_filters,omitempty"`
+
 	// AllowedTables is the list of tables the user can query
 	AllowedTables []string `json:"allowed_tables"`
 
-	// AllowedFields is the map of table -> allowed fields
+	// AllowedFields is the map of table -> allowed fields (only restricted tables)
 	AllowedFields map[string][]string `json:"allowed_fields"`
+
+	// UnrestrictedTables tracks tables with "*" or "" field access (no field restriction needed)
+	UnrestrictedTables map[string]bool `json:"unrestricted_tables,omitempty"`
 
 	// PreviousContext is the context from previous conversation turns
 	PreviousContext *EntityCollection `json:"previous_context,omitempty"`

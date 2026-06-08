@@ -200,6 +200,7 @@ export interface ConfigurePermissionData {
 // --- API-013~015: 查询历史 ---
 export interface HistoryRecord {
   id: string;
+  session_id: string;
   input: string;
   sql: string;
   status: 'success' | 'failed';

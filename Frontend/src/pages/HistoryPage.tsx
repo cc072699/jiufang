@@ -50,13 +50,11 @@ export default function HistoryPage() {
   };
 
   const handleContinue = async (record: HistoryRecord) => {
-    // Fetch detail to get real session_id
     try {
       const detail = await getHistoryDetail(record.id);
-      navigate('/query', { state: { input: record.input, sessionId: detail.session_id } });
+      navigate('/query', { state: { sessionId: detail.session_id, loadSession: true } });
     } catch {
-      // Fallback: navigate without sessionId (will start new session)
-      navigate('/query', { state: { input: record.input } });
+      message.error('获取会话信息失败');
     }
   };
 
@@ -215,7 +213,7 @@ export default function HistoryPage() {
               icon={<ReloadOutlined />}
               onClick={() => {
                 setDetailVisible(false);
-                navigate('/query', { state: { input: detailData.input, sessionId: detailData.session_id } });
+                navigate('/query', { state: { sessionId: detailData.session_id, loadSession: true } });
               }}
             >
               续接追问

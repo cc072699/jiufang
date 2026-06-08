@@ -4,6 +4,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"jiufang/internal/infrastructure/erp"
@@ -59,8 +61,20 @@ func (e *SQLExecutor) ExecuteWithPermission(ctx context.Context, sql string, que
 		return nil, err
 	}
 
-	// Add permission filter to SQL
-	if queryContext.PermissionFilter != "" {
+	// Rewrite SELECT * to only include allowed fields
+	sql = rewriteSelectStar(sql, queryContext.AllowedFields, queryContext.UnrestrictedTables)
+
+	// Apply per-table permission filter
+	if len(queryContext.TableFilters) > 0 {
+		tables := extractTablesFromSQL(sql)
+		for _, table := range tables {
+			if filter, ok := queryContext.TableFilters[strings.ToLower(table)]; ok {
+				sql = addPermissionFilter(sql, filter)
+				break // Only apply the first matching table's filter (main table)
+			}
+		}
+	} else if queryContext.PermissionFilter != "" {
+		// Fallback: global permission filter
 		sql = addPermissionFilter(sql, queryContext.PermissionFilter)
 	}
 
@@ -83,7 +97,95 @@ func (e *SQLExecutor) ExecuteWithPermission(ctx context.Context, sql string, que
 	result := agent.NewQueryResult(data, "", execTime, safeSQL)
 	result.PermissionFiltered = queryContext.PermissionFilter != ""
 
+	// Strip disallowed fields from result data
+	if len(queryContext.AllowedFields) > 0 {
+		result.Data = stripDisallowedFields(result.Data, queryContext.AllowedFields)
+	}
+
 	return result, nil
+}
+
+// rewriteSelectStar rewrites SELECT * to SELECT field1, field2, ... for restricted tables.
+// If the SQL contains SELECT * and the main table has field restrictions, it replaces * with allowed fields.
+func rewriteSelectStar(sql string, allowedFields map[string][]string, unrestrictedTables map[string]bool) string {
+	if len(allowedFields) == 0 {
+		return sql
+	}
+
+	// Check if SQL has SELECT *
+	upper := strings.ToUpper(sql)
+	selectStarRe := regexp.MustCompile(`(?i)SELECT\s+\*\s+FROM`)
+	if !selectStarRe.MatchString(upper) {
+		return sql
+	}
+
+	// Find the main table in the FROM clause
+	tables := extractTablesFromSQL(sql)
+	if len(tables) == 0 {
+		return sql
+	}
+
+	// Get allowed fields for the main table (first table)
+	mainTable := strings.ToLower(tables[0])
+	if unrestrictedTables[mainTable] {
+		return sql // no restriction needed
+	}
+
+	fields, ok := allowedFields[mainTable]
+	if !ok || len(fields) == 0 {
+		return sql // no specific fields configured
+	}
+
+	// Build the replacement field list
+	allowedList := strings.Join(fields, ", ")
+
+	// Replace SELECT * with SELECT field1, field2, ...
+	return selectStarRe.ReplaceAllString(sql, "SELECT "+allowedList+" FROM")
+}
+
+// stripDisallowedFields removes columns from query results that are not in the allowed fields list.
+func stripDisallowedFields(data []map[string]interface{}, allowedFields map[string][]string) []map[string]interface{} {
+	if len(data) == 0 || len(allowedFields) == 0 {
+		return data
+	}
+
+	// Build a set of all allowed field names (lowercased)
+	allowed := make(map[string]bool)
+	for _, fields := range allowedFields {
+		for _, f := range fields {
+			allowed[strings.ToLower(strings.TrimSpace(f))] = true
+		}
+	}
+
+	// Keep only allowed columns in each row
+	var filtered []map[string]interface{}
+	for _, row := range data {
+		newRow := make(map[string]interface{})
+		for col, val := range row {
+			lowerCol := strings.ToLower(col)
+			// Always keep non-restricted columns (meta columns like row_num, etc.)
+			if allowed[lowerCol] || !isRestrictedColumn(col, allowedFields) {
+				newRow[col] = val
+			}
+		}
+		filtered = append(filtered, newRow)
+	}
+	return filtered
+}
+
+// isRestrictedColumn checks if a column name corresponds to a restricted table's field.
+func isRestrictedColumn(col string, allowedFields map[string][]string) bool {
+	// Check if the column appears in any restricted table's field list
+	// If it does, it's restricted and must be explicitly allowed
+	lowerCol := strings.ToLower(col)
+	for _, fields := range allowedFields {
+		for _, f := range fields {
+			if strings.ToLower(strings.TrimSpace(f)) == lowerCol {
+				return true // this column IS in a restricted list, so it's managed
+			}
+		}
+	}
+	return false // this column is not in any restricted table's list, keep it
 }
 
 // ExecuteWithTimeout executes SQL with timeout.

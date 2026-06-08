@@ -134,26 +134,90 @@ func (v *SQLValidator) ValidateWithPermission(sql string, queryContext *agent.Qu
 		}
 	}
 
-	// Check field permissions
+	// Check field permissions per-table
 	if len(queryContext.AllowedFields) > 0 {
-		fields := extractFieldsFromSQL(sql)
-		for table, allowedFields := range queryContext.AllowedFields {
-			for _, field := range fields {
-				isAllowed := false
-				for _, allowedField := range allowedFields {
-					if strings.ToLower(field) == strings.ToLower(allowedField) || field == "*" {
-						isAllowed = true
-						break
+		tableFields := extractFieldsWithTable(sql)
+		for _, tf := range tableFields {
+			if tf.Field == "*" {
+				continue
+			}
+			if tf.Table != "" {
+				// Field has explicit table prefix — check that table's allowed fields
+				tblKey := strings.ToLower(tf.Table)
+				if queryContext.UnrestrictedTables[tblKey] {
+					continue // table has no field restriction
+				}
+				if allowed, ok := queryContext.AllowedFields[tblKey]; ok {
+					if !isFieldAllowed(tf.Field, allowed) {
+						return fmt.Errorf("用户无权限查询字段：%s.%s", tf.Table, tf.Field)
 					}
 				}
-				if !isAllowed {
-					return fmt.Errorf("用户无权限查询字段：%s.%s", table, field)
+			} else {
+				// No table prefix — field must be allowed by ALL restricted tables
+				for _, allowed := range queryContext.AllowedFields {
+					if !isFieldAllowed(tf.Field, allowed) {
+						return fmt.Errorf("用户无权限查询字段：%s", tf.Field)
+					}
 				}
 			}
 		}
 	}
 
 	return nil
+}
+
+// TableField represents a field with its table prefix.
+type TableField struct {
+	Table string
+	Field string
+}
+
+// extractFieldsWithTable extracts field names with their table prefixes from SQL.
+func extractFieldsWithTable(sql string) []TableField {
+	var fields []TableField
+
+	selectPattern := regexp.MustCompile(`(?i)SELECT\s+(.+?)\s+FROM`)
+	matches := selectPattern.FindStringSubmatch(sql)
+	if len(matches) < 2 {
+		return fields
+	}
+
+	for _, field := range strings.Split(matches[1], ",") {
+		field = strings.TrimSpace(field)
+		// Remove aliases (AS keyword)
+		if idx := strings.Index(strings.ToUpper(field), " AS "); idx > 0 {
+			field = strings.TrimSpace(field[:idx])
+		}
+		// Skip aggregate/function fields like COUNT(*), SUM(x)
+		upperField := strings.ToUpper(field)
+		if strings.Contains(upperField, "(") || strings.Contains(upperField, "CASE") || strings.Contains(upperField, "WHEN") {
+			continue
+		}
+		// Split table.field
+		if dotIdx := strings.LastIndex(field, "."); dotIdx > 0 {
+			fields = append(fields, TableField{
+				Table: strings.TrimSpace(field[:dotIdx]),
+				Field: strings.ToLower(strings.TrimSpace(field[dotIdx+1:])),
+			})
+		} else {
+			fields = append(fields, TableField{
+				Table: "",
+				Field: strings.ToLower(field),
+			})
+		}
+	}
+	return fields
+}
+
+// isFieldAllowed checks if a field name is in the allowed list.
+func isFieldAllowed(field string, allowed []string) bool {
+	lower := strings.ToLower(field)
+	for _, a := range allowed {
+		if strings.ToLower(strings.TrimSpace(a)) == lower {
+			return true
+		}
+	}
+	return false
 }
 
 // SetAllowedTables sets the list of allowed tables.
