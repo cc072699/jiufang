@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Form, Input, Select, DatePicker, Typography, Button, Space, message, Card } from 'antd';
+import { Form, Input, Select, DatePicker, Typography, Button, Space, message, Card, Checkbox, Table, Tag } from 'antd';
 import type { Dayjs } from 'dayjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createReport, updateReport, getReportList } from '../shared/api';
-import { SCHEDULE_SELECT_OPTIONS, ACTIVE_STATUS_SELECT_OPTIONS } from '../shared/constants';
-import type { CreateReportRequest, UpdateReportRequest, ReportRecord } from '../shared/api/types';
+import { createReport, updateReport, getReportList, getUserList, getGroupList } from '../shared/api';
+import { SCHEDULE_SELECT_OPTIONS, ACTIVE_STATUS_SELECT_OPTIONS, ROLE_LABELS, PUSH_CHANNEL_OPTIONS } from '../shared/constants';
+import type { CreateReportRequest, UpdateReportRequest, ReportRecord, UserRecord } from '../shared/api/types';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -27,6 +27,25 @@ export default function ReportFormPage() {
     enabled: isEdit && !navState?.record,
   });
 
+  const { data: userData } = useQuery({
+    queryKey: ['users-options'],
+    queryFn: () => getUserList({ page: 1, page_size: 100 }),
+  });
+
+  const { data: groupData } = useQuery({
+    queryKey: ['groups-options'],
+    queryFn: () => getGroupList({ page: 1, page_size: 100 }),
+  });
+
+  const userOptions = (userData?.users ?? []).map((u) => ({
+    label: u.username,
+    value: u.id,
+  }));
+
+  const groupNameMap: Record<string, string> = Object.fromEntries(
+    (groupData?.groups ?? []).map((g) => [g.id, g.name]),
+  );
+
   useEffect(() => {
     if (!isEdit) return;
     const record = navState?.record || data?.reports?.find((r) => r.id === id);
@@ -36,7 +55,8 @@ export default function ReportFormPage() {
         sql: record.sql,
         schedule_type: record.schedule_type,
         status: record.status,
-        // TODO: recipients, description, schedule_time 不在列表返回中，需后端补充详情接口
+        recipients: record.recipients,
+        push_channel: record.push_channel ? [record.push_channel] : ['email'],
       });
     }
   }, [isEdit, navState, data, id, form]);
@@ -45,7 +65,8 @@ export default function ReportFormPage() {
     setLoading(true);
     try {
       const scheduleTime = (values.schedule_time as Dayjs)?.toISOString();
-      const recipients = ((values.recipients as string) || '').split(',').map((s) => s.trim()).filter(Boolean);
+      const recipients = (values.recipients as string[]) || [];
+      const channels = (values.push_channel as string[]) || ['email'];
 
       if (isEdit) {
         const payload: UpdateReportRequest = {
@@ -54,6 +75,7 @@ export default function ReportFormPage() {
           schedule_type: values.schedule_type as 'daily' | 'weekly' | 'monthly',
           schedule_time: scheduleTime,
           recipients,
+          push_channel: channels[0] as 'wechat' | 'email',
           description: values.description as string,
           status: values.status as 'active' | 'inactive',
         };
@@ -66,6 +88,7 @@ export default function ReportFormPage() {
           schedule_type: values.schedule_type as 'daily' | 'weekly' | 'monthly',
           schedule_time: scheduleTime || '',
           recipients,
+          push_channel: channels[0] as 'wechat' | 'email',
           description: values.description as string,
         };
         await createReport(payload);
@@ -80,20 +103,39 @@ export default function ReportFormPage() {
     }
   };
 
+  const selectedRecipients = Form.useWatch('recipients', form) as string[] | undefined;
+  const selectedUsers: UserRecord[] = (userData?.users ?? []).filter((u) =>
+    (selectedRecipients ?? []).includes(u.id),
+  );
+
+  const selectedUserColumns = [
+    { title: '用户名', dataIndex: 'username', key: 'username' },
+    {
+      title: '角色',
+      dataIndex: 'role',
+      key: 'role',
+      render: (role: string) => ROLE_LABELS[role] || role,
+    },
+    {
+      title: '所属用户组',
+      dataIndex: 'groups',
+      key: 'groups',
+      render: (groups?: string[]) =>
+        groups && groups.length > 0
+          ? groups.map((gid) => <Tag key={gid}>{groupNameMap[gid] || gid}</Tag>)
+          : '-',
+    },
+  ];
+
   return (
     <div>
       <Title level={4}>{isEdit ? '编辑报告' : '新建报告'}</Title>
-      <Card style={{ maxWidth: 640 }}>
-        {isEdit && (
-          <div style={{ marginBottom: 16 }}>
-            <Text type="secondary">提示：编辑页部分字段（接收人、描述、推送时间）需后端补充详情接口后才能完整回填。</Text>
-          </div>
-        )}
+      <Card style={{ maxWidth: 720 }}>
         <Form
           form={form}
           layout="vertical"
           onFinish={handleFinish}
-          initialValues={{ schedule_type: 'daily', status: 'active' }}
+          initialValues={{ schedule_type: 'daily', status: 'active', push_channel: ['email'] }}
         >
           <Form.Item
             name="name"
@@ -125,8 +167,31 @@ export default function ReportFormPage() {
           >
             <DatePicker showTime format="YYYY-MM-DD HH:mm:ss" style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="recipients" label="接收人（逗号分隔）" rules={[{ required: !isEdit, message: '请输入接收人' }]}>
-            <Input placeholder="张三, 李四, 王五" />
+          <Form.Item name="recipients" label="接收人" rules={[{ required: !isEdit, message: '请选择接收人' }]}>
+            <Select
+              mode="multiple"
+              placeholder="搜索并选择接收人"
+              options={userOptions}
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+            />
+          </Form.Item>
+          {selectedUsers.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <Text strong style={{ marginBottom: 8, display: 'block' }}>已选接收人</Text>
+              <Table
+                dataSource={selectedUsers}
+                columns={selectedUserColumns}
+                rowKey="id"
+                size="small"
+                pagination={false}
+              />
+            </div>
+          )}
+          <Form.Item name="push_channel" label="推送渠道">
+            <Checkbox.Group options={PUSH_CHANNEL_OPTIONS} />
           </Form.Item>
           <Form.Item
             name="description"

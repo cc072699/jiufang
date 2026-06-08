@@ -76,6 +76,10 @@ func (s *ReportService) CreateReport(ctx context.Context, req *report.CreateRepo
 	}
 
 	// Create scheduled report entity
+	pushChannel := req.PushChannel
+	if pushChannel == "" {
+		pushChannel = report.PushChannelWeChat
+	}
 	scheduledReport := &report.ScheduledReport{
 		SnowflakeID:  snowflakeID,
 		Name:         req.Name,
@@ -84,6 +88,7 @@ func (s *ReportService) CreateReport(ctx context.Context, req *report.CreateRepo
 		ScheduleType: req.ScheduleType,
 		ScheduleTime: req.ScheduleTime,
 		Recipients:   string(recipientsJSON),
+		PushChannel:  pushChannel,
 		Status:       report.ReportStatusActive,
 		CreatedBy:    req.CreatedBy,
 		CreatedAt:    time.Now(),
@@ -207,6 +212,9 @@ func (s *ReportService) UpdateReport(ctx context.Context, snowflakeID int64, req
 	}
 	if recipientsJSON != "" {
 		updates["recipients"] = recipientsJSON
+	}
+	if req.PushChannel != "" {
+		updates["push_channel"] = req.PushChannel
 	}
 
 	// Update in database

@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"github.com/xuri/excelize/v2"
 	"go.uber.org/zap"
 
 	"jiufang/internal/model/export"
@@ -168,31 +171,128 @@ func (s *ExportAppService) GetExportRecordList(ctx context.Context, userID int64
 
 // generateExcel generates an Excel file from query data.
 func (s *ExportAppService) generateExcel(data []map[string]interface{}, title string, snowflakeID int64, exportTime time.Time) (string, int64, error) {
-	// TODO: Implement Excel generation using excelize library
-	// This is a placeholder implementation
-	fileName := fmt.Sprintf("%s_%d_%s.xlsx", title, snowflakeID, exportTime.Format("20060102_150405"))
+	if title == "" {
+		title = "查询结果"
+	}
 
-	// Placeholder: return dummy file info
-	// In real implementation, use github.com/xuri/excelize/v2 to generate Excel
-	return fileName, 0, fmt.Errorf("excel generation not implemented yet")
+	f := excelize.NewFile()
+	defer f.Close()
+
+	sheetName := "Sheet1"
+	index, _ := f.NewSheet(sheetName)
+	f.SetActiveSheet(index)
+	f.DeleteSheet("Sheet1")
+
+	// Write title row
+	f.SetCellValue(sheetName, "A1", title)
+	titleStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 14},
+		Alignment: &excelize.Alignment{Horizontal: "center"},
+	})
+	f.SetCellStyle(sheetName, "A1", "A1", titleStyle)
+	f.MergeCell(sheetName, "A1", "A1")
+
+	// Write export time
+	f.SetCellValue(sheetName, "A2", fmt.Sprintf("导出时间: %s", exportTime.Format("2006-01-02 15:04:05")))
+
+	if len(data) == 0 {
+		f.SetCellValue(sheetName, "A3", "无数据")
+	} else {
+		// Extract column names from first row
+		var columns []string
+		for col := range data[0] {
+			columns = append(columns, col)
+		}
+
+		// Write header row (row 3)
+		headerStyle, _ := f.NewStyle(&excelize.Style{
+			Font:      &excelize.Font{Bold: true, Size: 11},
+			Fill:      excelize.Fill{Type: "pattern", Color: []string{"#D9E1F2"}, Pattern: 1},
+			Alignment: &excelize.Alignment{Horizontal: "center"},
+		})
+		for ci, col := range columns {
+			cell, _ := excelize.CoordinatesToCellName(ci+1, 3)
+			f.SetCellValue(sheetName, cell, col)
+		}
+		startCol, _ := excelize.CoordinatesToCellName(1, 3)
+		endCol, _ := excelize.CoordinatesToCellName(len(columns), 3)
+		f.SetCellStyle(sheetName, startCol, endCol, headerStyle)
+
+		// Write data rows (starting from row 4)
+		for ri, row := range data {
+			for ci, col := range columns {
+				cell, _ := excelize.CoordinatesToCellName(ci+1, ri+4)
+				f.SetCellValue(sheetName, cell, row[col])
+			}
+		}
+
+		// Auto-fit column widths (approximate)
+		for ci, col := range columns {
+			width := float64(len(col))*1.5 + 4
+			if width < 10 {
+				width = 10
+			}
+			colName, _ := excelize.ColumnNumberToName(ci + 1)
+			f.SetColWidth(sheetName, colName, colName, width)
+		}
+	}
+
+	// Save file
+	dir := filepath.Join(s.exportDir, exportTime.Format("20060102"))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", 0, fmt.Errorf("failed to create export directory: %w", err)
+	}
+
+	fileName := fmt.Sprintf("%s_%d_%s.xlsx", title, snowflakeID, exportTime.Format("20060102_150405"))
+	filePath := filepath.Join(dir, fileName)
+
+	if err := f.SaveAs(filePath); err != nil {
+		return "", 0, fmt.Errorf("failed to save Excel file: %w", err)
+	}
+
+	// Get file size
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return fileName, 0, nil
+	}
+
+	return fileName, info.Size(), nil
 }
 
 // generatePDF generates a PDF file from query data with watermark.
 func (s *ExportAppService) generatePDF(data []map[string]interface{}, title string, snowflakeID int64, exportTime time.Time, userID int64) (string, int64, error) {
-	// TODO: Implement PDF generation using gofpdf library with watermark
-	// This is a placeholder implementation
-	fileName := fmt.Sprintf("%s_%d_%s.pdf", title, snowflakeID, exportTime.Format("20060102_150405"))
-
-	// Placeholder: return dummy file info
-	// In real implementation, use github.com/jung-kurt/gofpdf to generate PDF with watermark
-	return fileName, 0, fmt.Errorf("pdf generation not implemented yet")
+	return "", 0, fmt.Errorf("PDF 导出暂不支持，请使用 Excel 格式")
 }
 
 // parseQueryResult parses the query result JSON string into data structure.
+// The stored result may be either a flat array or a full result object with a "rows" field.
 func parseQueryResult(resultJSON string, data *[]map[string]interface{}) error {
 	if resultJSON == "" {
 		*data = []map[string]interface{}{}
 		return nil
 	}
-	return json.Unmarshal([]byte(resultJSON), data)
+
+	// Try direct array unmarshal first
+	if err := json.Unmarshal([]byte(resultJSON), data); err == nil {
+		return nil
+	}
+
+	// Try as a full result object with "rows" field
+	var resultObj map[string]interface{}
+	if err := json.Unmarshal([]byte(resultJSON), &resultObj); err != nil {
+		return err
+	}
+
+	rowsRaw, ok := resultObj["rows"]
+	if !ok {
+		*data = []map[string]interface{}{}
+		return nil
+	}
+
+	rowsJSON, err := json.Marshal(rowsRaw)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(rowsJSON, data)
 }

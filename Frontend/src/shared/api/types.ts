@@ -30,6 +30,7 @@ export interface ColumnDef {
 
 export interface QueryResultData {
   session_id: string;
+  query_record_id: string;
   understanding: string;
   result_type: 'table' | 'chart' | 'empty';
   columns?: ColumnDef[];
@@ -37,7 +38,7 @@ export interface QueryResultData {
   chart_config?: ChartConfig;
   suggested_questions?: string[];
   can_export: boolean;
-  sql?: string; // 非设计文档定义，为收藏功能预留；联调后端需确认是否返回
+  sql?: string;
 }
 
 export interface ChartConfig {
@@ -126,6 +127,7 @@ export interface UserRecord {
   username: string;
   email: string;
   role: 'admin' | 'manager' | 'executive';
+  groups?: string[];
   status: number;
   created_at: string;
 }
@@ -247,6 +249,7 @@ export interface CreateReportRequest {
   schedule_type: 'daily' | 'weekly' | 'monthly';
   schedule_time: string;
   recipients: string[];
+  push_channel?: 'wechat' | 'email';
   description?: string;
 }
 
@@ -256,6 +259,7 @@ export interface UpdateReportRequest {
   schedule_type?: 'daily' | 'weekly' | 'monthly';
   schedule_time?: string;
   recipients?: string[];
+  push_channel?: 'wechat' | 'email';
   description?: string;
   status?: 'active' | 'inactive';
 }
@@ -267,6 +271,7 @@ export interface ReportRecord {
   schedule_time: string;
   recipients: string[];
   recipients_count: number;
+  push_channel?: 'wechat' | 'email';
   status: 'active' | 'inactive';
   description?: string;
   sql?: string;
@@ -286,6 +291,7 @@ export interface ReportDetailData {
   schedule_type: 'daily' | 'weekly' | 'monthly';
   schedule_time: string;
   recipients: string[];
+  push_channel?: 'wechat' | 'email';
   description?: string;
   status: 'active' | 'inactive';
   created_by?: string;
@@ -299,6 +305,7 @@ export interface CreateAlertRequest {
   sql: string;
   condition: string;
   recipients: string[];
+  push_channel?: 'wechat' | 'email';
   description?: string;
 }
 
@@ -307,6 +314,7 @@ export interface UpdateAlertRequest {
   sql?: string;
   condition?: string;
   recipients?: string[];
+  push_channel?: 'wechat' | 'email';
   description?: string;
   status?: 'active' | 'inactive';
 }
@@ -317,6 +325,7 @@ export interface AlertRecord {
   condition: string;
   recipients: string[];
   recipients_count: number;
+  push_channel?: 'wechat' | 'email';
   status: 'active' | 'inactive';
   description?: string;
   last_triggered_at?: string;
@@ -333,6 +342,7 @@ export interface AlertDetailData {
   sql: string;
   condition: string;
   recipients: string[];
+  push_channel?: 'wechat' | 'email';
   description?: string;
   status: 'active' | 'inactive';
   created_by?: string;
@@ -375,9 +385,23 @@ export interface LogListData extends PaginatedData {
 
 // --- 反馈提交 (PRD F13) ---
 export interface SubmitFeedbackRequest {
-  query_record_id: string;
+  query_record_id: number;
   rating: 'satisfied' | 'unsatisfied';
   reason?: string;
+}
+
+// --- 数据导出 ---
+export interface ExportQueryRequest {
+  query_record_id: string;
+  format: 'excel' | 'pdf';
+  title?: string;
+}
+
+export interface ExportQueryResult {
+  file_url: string;
+  file_name: string;
+  file_size: number;
+  export_time: string;
 }
 
 // --- 修改密码 (PRD F15) ---

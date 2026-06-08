@@ -182,3 +182,14 @@ export const PUSH_STATUS_FILTER_OPTIONS = [
   { label: '成功', value: 'success' },
   { label: '失败', value: 'failed' },
 ];
+
+// --- 推送渠道 ---
+export const PUSH_CHANNEL_LABELS: Record<string, string> = {
+  wechat: '企业微信',
+  email: '邮箱',
+};
+
+export const PUSH_CHANNEL_OPTIONS = [
+  { label: '邮箱', value: 'email' },
+  { label: '企业微信', value: 'wechat' },
+];

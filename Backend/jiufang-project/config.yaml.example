@@ -63,3 +63,9 @@ dialog:
   max_turns: 5
   enable_anaphora: true
   enable_merge: true
+
+smtp:
+  host: "smtp.qq.com"
+  port: "465"
+  username: "214510115@qq.com"
+  password: "dqqyvmzxepjucace"

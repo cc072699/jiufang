@@ -181,6 +181,15 @@ func main() {
 	operationLogService := service.NewOperationLogService(operationLogRepo, userRepo, log)
 	profileAppService := service.NewProfileAppService(userRepo, userGroupRepo)
 
+	// Step 11.1: Initialize email and notification services
+	emailService := service.NewEmailService(
+		cfg.SMTP.Host, cfg.SMTP.Port,
+		cfg.SMTP.Username, cfg.SMTP.Password,
+		log,
+	)
+	recipientResolver := service.NewRecipientResolver(userRepo, log)
+	_ = service.NewPushAppService(reportRepo, idGenerator, erpReader, emailService, recipientResolver, log)
+
 	log.Info("Services initialized successfully")
 
 	// Step 12: Initialize middleware
@@ -215,6 +224,9 @@ func main() {
 			"time":    time.Now().Format(time.RFC3339),
 		})
 	})
+
+	// Step 14.1: Static file serving for exports
+	router.Static("/downloads", "./exports")
 
 	// Step 15: Register API routes
 	apiV1 := router.Group("/api/v1")

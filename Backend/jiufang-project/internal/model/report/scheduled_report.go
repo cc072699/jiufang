@@ -59,6 +59,7 @@ type ScheduledReport struct {
 	ScheduleType ScheduleType   `gorm:"size:20;not null" json:"schedule_type"` // 定时类型（daily/weekly/monthly）
 	ScheduleTime string         `gorm:"size:50;not null" json:"schedule_time"` // 定时时间（ISO8601格式或时间表达式）
 	Recipients   string         `gorm:"type:text;not null" json:"recipients"`  // 接收者列表（JSON数组格式）
+	PushChannel  PushChannel    `gorm:"type:varchar(20);not null;default:wechat" json:"push_channel"` // 推送渠道
 	Status       ReportStatus   `gorm:"size:20;not null;default:active" json:"status"`
 	CreatedBy    int64          `gorm:"not null;index" json:"created_by"`
 	CreatedAt    time.Time      `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`

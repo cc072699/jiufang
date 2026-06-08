@@ -46,3 +46,6 @@ dump.rdb
 
 # Uploads
 Backend/jiufang-project/uploads/
+
+# Exports
+Backend/jiufang-project/exports/

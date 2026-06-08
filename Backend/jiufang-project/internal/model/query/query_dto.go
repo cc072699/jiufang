@@ -14,6 +14,7 @@ type NaturalLanguageQueryRequest struct {
 // QueryResultResponse represents the response for a query result.
 type QueryResultResponse struct {
 	SessionID          string                   `json:"session_id"`
+	QueryRecordID      string                   `json:"query_record_id"`
 	Understanding      string                   `json:"understanding"`
 	ResultType         string                   `json:"result_type"` // table/chart/empty
 	SQL                string                   `json:"sql,omitempty"`

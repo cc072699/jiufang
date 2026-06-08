@@ -9,6 +9,7 @@ type CreateReportRequest struct {
 	ScheduleType ScheduleType `json:"schedule_type" binding:"required,oneof=daily weekly monthly"`
 	ScheduleTime string       `json:"schedule_time" binding:"required"`
 	Recipients   []string     `json:"recipients" binding:"required,min=1"`
+	PushChannel  PushChannel  `json:"push_channel" binding:"omitempty,oneof=wechat email"`
 	Description  string       `json:"description" binding:"max=200"`
 	CreatedBy    int64        `json:"-"`
 }
@@ -20,6 +21,7 @@ type UpdateReportRequest struct {
 	ScheduleType ScheduleType `json:"schedule_type" binding:"oneof=daily weekly monthly"`
 	ScheduleTime string       `json:"schedule_time"`
 	Recipients   []string     `json:"recipients"`
+	PushChannel  PushChannel  `json:"push_channel" binding:"omitempty,oneof=wechat email"`
 	Description  string       `json:"description" binding:"max=200"`
 }
 
@@ -31,6 +33,7 @@ type ReportResponse struct {
 	ScheduleType ScheduleType `json:"schedule_type"`
 	ScheduleTime string       `json:"schedule_time"`
 	Recipients   []string     `json:"recipients"`
+	PushChannel  PushChannel  `json:"push_channel"`
 	Description  string       `json:"description"`
 	Status       ReportStatus `json:"status"`
 	CreatedBy    int64        `json:"created_by"`

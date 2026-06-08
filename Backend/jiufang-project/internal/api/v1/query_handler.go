@@ -118,10 +118,11 @@ func (h *QueryHandler) ExecuteQuery(c *gin.Context) {
 	// Build response
 	queryResult := query.QueryResultResponse{
 		SessionID:          sessionID,
+		QueryRecordID:      strconv.FormatInt(result.QueryID, 10),
 		Understanding:      result.Understanding,
-		ResultType:         "table",    // Default to table type
+		ResultType:         "table",
 		SQL:                result.GeneratedSQL,
-		SuggestedQuestions: []string{}, // TODO: Generate suggested questions based on query context
+		SuggestedQuestions: []string{},
 		CanExport:          true,
 	}
 

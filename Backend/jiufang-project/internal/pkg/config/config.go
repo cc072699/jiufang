@@ -18,6 +18,7 @@ type Config struct {
 	Redis        RedisConfig
 	QueryService QueryServiceConfig
 	Dialog       DialogConfig
+	SMTP         SMTPConfig
 }
 
 type ServerConfig struct {
@@ -93,6 +94,13 @@ type DialogConfig struct {
 	EnableMerge    bool `yaml:"enable_merge"`
 }
 
+type SMTPConfig struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
+
 func Load() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -144,6 +152,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("dialog.max_turns", 5)
 	viper.SetDefault("dialog.enable_anaphora", true)
 	viper.SetDefault("dialog.enable_merge", true)
+	viper.SetDefault("smtp.host", "smtp.qq.com")
+	viper.SetDefault("smtp.port", "465")
 
 	viper.AutomaticEnv()
 
@@ -222,6 +232,12 @@ func Load() (*Config, error) {
 			MaxTurns:       viper.GetInt("dialog.max_turns"),
 			EnableAnaphora: viper.GetBool("dialog.enable_anaphora"),
 			EnableMerge:    viper.GetBool("dialog.enable_merge"),
+		},
+		SMTP: SMTPConfig{
+			Host:     viper.GetString("smtp.host"),
+			Port:     viper.GetString("smtp.port"),
+			Username: viper.GetString("smtp.username"),
+			Password: viper.GetString("smtp.password"),
 		},
 	}, nil
 }

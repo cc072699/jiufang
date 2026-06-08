@@ -42,6 +42,8 @@ import type {
   LogListData,
   LogListParams,
   SubmitFeedbackRequest,
+  ExportQueryRequest,
+  ExportQueryResult,
   ChangePasswordRequest,
   AvatarUploadResponse,
   ProfileData,
@@ -255,6 +257,12 @@ export async function getLogList(params?: LogListParams) {
 // 提交查询反馈 (PRD F13)
 export async function submitFeedback(params: SubmitFeedbackRequest) {
   await apiClient.post<ApiResponse<null>>('/feedbacks', params);
+}
+
+// 导出查询结果 (PRD F14)
+export async function exportQueryResult(params: ExportQueryRequest) {
+  const res = await apiClient.post<ApiResponse<ExportQueryResult>>('/export', params);
+  return getData(res);
 }
 
 // 修改密码 (PRD F15)

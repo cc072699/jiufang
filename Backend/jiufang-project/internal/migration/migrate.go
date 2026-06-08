@@ -29,11 +29,11 @@ func RunMigrations(dsn string) error {
 		}
 
 		// If migration fails, try to force set version to latest
-		log.Printf("Migration failed: %v, attempting to force set version to 13", err)
-		if err := m.Force(13); err != nil {
+		log.Printf("Migration failed: %v, attempting to force set version to 16", err)
+		if err := m.Force(16); err != nil {
 			return fmt.Errorf("failed to force set migration version: %w", err)
 		}
-		log.Printf("Migration version forced to 13")
+		log.Printf("Migration version forced to 16")
 	}
 
 	version, dirty, _ := m.Version()

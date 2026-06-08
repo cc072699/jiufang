@@ -84,7 +84,8 @@ func (s *CronScheduler) LoadActiveReports(ctx context.Context) error {
 		s.logger.Info("report scheduled successfully",
 			zap.Int64("report_id", scheduledReport.SnowflakeID),
 			zap.String("report_name", scheduledReport.Name),
-			zap.String("cron", scheduledReport.ScheduleCron),
+			zap.String("schedule_type", string(scheduledReport.ScheduleType)),
+			zap.String("schedule_time", scheduledReport.ScheduleTime),
 		)
 	}
 
@@ -104,15 +105,16 @@ func (s *CronScheduler) AddReport(scheduledReport *report.ScheduledReport) error
 		s.removeReportUnsafe(scheduledReport.SnowflakeID)
 	}
 
-	// Add cron job
-	entryID, err := s.cron.AddFunc(scheduledReport.ScheduleCron, func() {
+	// Build cron expression from schedule type and time
+	cronExpr := buildCronExpr(scheduledReport.ScheduleType, scheduledReport.ScheduleTime)
+	entryID, err := s.cron.AddFunc(cronExpr, func() {
 		s.executeReport(scheduledReport)
 	})
 
 	if err != nil {
 		s.logger.Error("failed to add cron job",
 			zap.Int64("report_id", scheduledReport.SnowflakeID),
-			zap.String("cron", scheduledReport.ScheduleCron),
+			zap.String("cron", cronExpr),
 			zap.Error(err),
 		)
 		return fmt.Errorf("failed to add cron job: %w", err)
@@ -124,7 +126,7 @@ func (s *CronScheduler) AddReport(scheduledReport *report.ScheduledReport) error
 	s.logger.Info("report added to scheduler",
 		zap.Int64("report_id", scheduledReport.SnowflakeID),
 		zap.Int("entry_id", int(entryID)),
-		zap.String("cron", scheduledReport.ScheduleCron),
+		zap.String("cron", cronExpr),
 	)
 
 	return nil
@@ -214,4 +216,30 @@ func (s *CronScheduler) executeReport(scheduledReport *report.ScheduledReport) {
 		zap.Int64("report_id", scheduledReport.SnowflakeID),
 		zap.String("report_name", scheduledReport.Name),
 	)
+}
+
+// buildCronExpr converts ScheduleType and ScheduleTime into a cron expression.
+// ScheduleTime is expected in ISO8601 format (e.g. "2024-01-15T09:00:00Z") or "HH:MM" format.
+func buildCronExpr(scheduleType report.ScheduleType, scheduleTime string) string {
+	var hour, minute int
+	t, err := time.Parse("2006-01-02T15:04:05Z", scheduleTime)
+	if err != nil {
+		t, err = time.Parse("15:04", scheduleTime)
+	}
+	if err != nil {
+		hour, minute = 0, 0
+	} else {
+		hour, minute = t.Hour(), t.Minute()
+	}
+
+	switch scheduleType {
+	case report.ScheduleTypeDaily:
+		return fmt.Sprintf("0 %d %d * * *", minute, hour)
+	case report.ScheduleTypeWeekly:
+		return fmt.Sprintf("0 %d %d * * 1", minute, hour)
+	case report.ScheduleTypeMonthly:
+		return fmt.Sprintf("0 %d %d 1 * *", minute, hour)
+	default:
+		return "0 0 0 * * *"
+	}
 }

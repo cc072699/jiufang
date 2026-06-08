@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Input, Button, Card, Typography, Space, Alert, Skeleton, List, Tooltip, message, Modal, Form } from 'antd';
-import { SendOutlined, ThunderboltOutlined, PlusOutlined, MessageOutlined, ExportOutlined, SearchOutlined, StarOutlined } from '@ant-design/icons';
+import { Input, Button, Card, Typography, Space, Alert, Skeleton, List, message, Modal, Form, Dropdown } from 'antd';
+import { SendOutlined, ThunderboltOutlined, PlusOutlined, MessageOutlined, ExportOutlined, SearchOutlined, StarOutlined, DownOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { queryNaturalLanguage, submitFeedback, createFavorite, getHistoryList, getHistoryBySessionID } from '../shared/api';
+import { queryNaturalLanguage, submitFeedback, createFavorite, getHistoryList, getHistoryBySessionID, exportQueryResult } from '../shared/api';
+import { getToken } from '../shared/auth/token';
 import { DataTable, ChartRenderer, EmptyState } from '../shared/ui';
 import type { QueryResultData } from '../shared/api/types';
 
@@ -33,8 +34,8 @@ export default function QueryPage() {
   const endRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const queryClient = useQueryClient();
-  const [feedbackModal, setFeedbackModal] = useState<{ visible: boolean; reason: string; sessionId: string; query: string }>({
-    visible: false, reason: '', sessionId: '', query: '',
+  const [feedbackModal, setFeedbackModal] = useState<{ visible: boolean; reason: string; queryRecordId: string; query: string }>({
+    visible: false, reason: '', queryRecordId: '', query: '',
   });
   const [favoriteModal, setFavoriteModal] = useState<{ visible: boolean; input: string; sql: string }>({
     visible: false, input: '', sql: '',
@@ -142,6 +143,8 @@ export default function QueryPage() {
           try {
             parsedResult = JSON.parse(r.result_data) as QueryResultData;
             if (!parsedResult.session_id) parsedResult.session_id = r.session_id;
+            // Inject query_record_id from history record so export/feedback buttons work
+            parsedResult.query_record_id = r.id;
           } catch { /* ignore parse failure */ }
         }
         msgs.push({
@@ -166,17 +169,17 @@ export default function QueryPage() {
     }
   };
 
-  const handleFeedback = async (sessionId: string, query: string) => {
+  const handleFeedback = async (queryRecordId: string) => {
     try {
-      await submitFeedback({ query_record_id: sessionId, rating: 'satisfied' });
+      await submitFeedback({ query_record_id: Number(queryRecordId), rating: 'satisfied' });
       message.success('感谢反馈！');
     } catch {
       message.error('反馈提交失败，请稍后重试');
     }
   };
 
-  const handleFeedbackDissatisfied = (sessionId: string, query: string) => {
-    setFeedbackModal({ visible: true, reason: '', sessionId, query });
+  const handleFeedbackDissatisfied = (queryRecordId: string, query: string) => {
+    setFeedbackModal({ visible: true, reason: '', queryRecordId, query });
   };
 
   const handleFeedbackSubmit = async () => {
@@ -186,14 +189,69 @@ export default function QueryPage() {
     }
     try {
       await submitFeedback({
-        query_record_id: feedbackModal.sessionId,
+        query_record_id: Number(feedbackModal.queryRecordId),
         rating: 'unsatisfied',
         reason: feedbackModal.reason.trim(),
       });
       message.success('感谢反馈！');
-      setFeedbackModal({ visible: false, reason: '', sessionId: '', query: '' });
+      setFeedbackModal({ visible: false, reason: '', queryRecordId: '', query: '' });
     } catch {
       message.error('反馈提交失败，请稍后重试');
+    }
+  };
+
+  const downloadBlob = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = (result: QueryResultData) => {
+    if (!result.rows || !result.columns) {
+      message.warning('无数据可导出');
+      return;
+    }
+    const headers = result.columns.map((c) => c.name);
+    const csvRows = [headers.join(',')];
+    for (const row of result.rows) {
+      csvRows.push(headers.map((h) => {
+        const val = row[h];
+        if (val == null) return '';
+        const str = String(val);
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+          ? `"${str.replace(/"/g, '""')}"` : str;
+      }).join(','));
+    }
+    const bom = '﻿';
+    const blob = new Blob([bom + csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
+    downloadBlob(blob, `${result.understanding || '查询结果'}.csv`);
+    message.success('CSV 导出成功');
+  };
+
+  const handleExportExcel = async (queryRecordId: string, title?: string) => {
+    try {
+      message.loading({ content: '正在导出...', key: 'export' });
+      const result = await exportQueryResult({
+        query_record_id: queryRecordId,
+        format: 'excel',
+        title: title || '查询结果',
+      });
+      // Download via direct fetch (bypass apiClient baseURL prefix)
+      const token = getToken();
+      const resp = await fetch(result.file_url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) throw new Error('下载失败');
+      const blob = await resp.blob();
+      downloadBlob(blob, result.file_name);
+      message.success({ content: 'Excel 导出成功', key: 'export' });
+    } catch (err: unknown) {
+      message.error({ content: err instanceof Error ? err.message : '导出失败', key: 'export' });
     }
   };
 
@@ -433,12 +491,27 @@ export default function QueryPage() {
                           {/* Action bar: export + favorite */}
                           <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Space>
-                              {msg.result.can_export && (
-                                <Tooltip title="导出功能待后端接口">
-                                  <Button size="small" icon={<ExportOutlined />} disabled>
-                                    导出
+                              {msg.result.can_export && msg.result.rows && msg.result.rows.length > 0 && (
+                                <Dropdown
+                                  menu={{
+                                    items: [
+                                      ...(msg.result.query_record_id ? [{
+                                        key: 'excel',
+                                        label: '导出 Excel',
+                                        onClick: () => handleExportExcel(msg.result!.query_record_id, msg.result!.understanding),
+                                      }] : []),
+                                      {
+                                        key: 'csv',
+                                        label: '导出 CSV',
+                                        onClick: () => handleExportCSV(msg.result!),
+                                      },
+                                    ],
+                                  }}
+                                >
+                                  <Button size="small" icon={<ExportOutlined />}>
+                                    导出 <DownOutlined />
                                   </Button>
-                                </Tooltip>
+                                </Dropdown>
                               )}
                               <Button
                                 size="small"
@@ -456,30 +529,27 @@ export default function QueryPage() {
                           </div>
                           {/* Feedback buttons */}
                           <div style={{ marginTop: 4, display: 'flex', gap: 4 }}>
-                            <Button
-                              type="text"
-                              size="small"
-                              onClick={() => {
-                                const prevMsg = messages[i - 1];
-                                if (msg.result && prevMsg?.role === 'user') {
-                                  handleFeedback(msg.result.session_id, prevMsg.content);
-                                }
-                              }}
-                            >
-                              {'👍'} 有帮助
-                            </Button>
-                            <Button
-                              type="text"
-                              size="small"
-                              onClick={() => {
-                                const prevMsg = messages[i - 1];
-                                if (msg.result && prevMsg?.role === 'user') {
-                                  handleFeedbackDissatisfied(msg.result.session_id, prevMsg.content);
-                                }
-                              }}
-                            >
-                              {'👎'} 没帮助
-                            </Button>
+                            {msg.result.query_record_id && (
+                              <>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  onClick={() => handleFeedback(msg.result!.query_record_id)}
+                                >
+                                  {'👍'} 有帮助
+                                </Button>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  onClick={() => {
+                                    const prevMsg = messages[i - 1];
+                                    handleFeedbackDissatisfied(msg.result!.query_record_id, prevMsg?.content ?? '');
+                                  }}
+                                >
+                                  {'👎'} 没帮助
+                                </Button>
+                              </>
+                            )}
                           </div>
                           {msg.result.suggested_questions &&
                             msg.result.suggested_questions.length > 0 && (
